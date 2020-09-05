@@ -1,9 +1,7 @@
-cmake_minimum_required(VERSION 3.1.0)
-
+cmake_minimum_required(VERSION 3.17)
 project(geometry_utils VERSION 0.1
                        DESCRIPTION "Some geometry utils."
                        LANGUAGES CXX)
-
 enable_testing()
 
 set(CMAKE_COLOR_MAKEFILE ON)
