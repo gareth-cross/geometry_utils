@@ -28,6 +28,8 @@ build/*
 *.creator.user.*
 *.config
 *.files
+*.cflags
+*.cxxflags
 
 # JETBRAINS
 *.idea
