@@ -197,6 +197,9 @@ Matrix<ScalarType<Derived>, 3, 3> SO3Jacobian(const Eigen::MatrixBase<Derived>& 
  * column order.
  *
  * This is the matrix version of QuaternionExpDerivative.
+ *
+ * TODO(gareth): It's possible this has a simpler form. I went as far as condensing it to
+ * terms proportional to 1 / theta^-4 and stopped.
  */
 template <typename Scalar>
 Matrix<Scalar, 9, 3> SO3ExpMatrixDerivative(const Vector<Scalar, 3>& w) {

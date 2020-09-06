@@ -32,10 +32,13 @@ template <typename Type, typename = void>
 struct IsVector {
   static constexpr bool value = false;
 };
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-value"
 template <typename Type>
 struct IsVector<Type, decltype(Type::IsVectorAtCompileTime, void())> {
   static constexpr bool value = Type::IsVectorAtCompileTime;
 };
+#pragma GCC diagnostic pop
 
 //
 // Compile time tests.
