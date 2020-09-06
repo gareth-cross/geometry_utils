@@ -132,7 +132,7 @@ class TestSO3Jacobian : public ::testing::Test {
   void TestGeneral() {
     for (const Eigen::Vector3d& w : kRandomRotationVectors) {
       TestJacobian<double>(w, tol::kNano);
-      TestJacobian<float>(w.cast<float>(), tol::kNano);
+      TestJacobian<float>(w.cast<float>(), tol::kMilli / 10);
     }
   }
 
