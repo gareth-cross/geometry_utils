@@ -29,8 +29,11 @@ void printImpl(const std::string& name, Xpr xpr) {
 
 namespace math {
 
-// 300 randomly generated rotation vectors, used for testing.
-extern const std::vector<Eigen::Vector3d> kRandomRotationVectors;
+// 300 randomly generated rotation vectors (range 0 to 2pi), used for testing.
+extern const std::vector<Eigen::Vector3d> kRandomRotationVectorsZero2Pi;
+
+// 300 more in 0 to pi.
+extern const std::vector<Eigen::Vector3d> kRandomRotationVectorsZeroPi;
 
 // Compare two eigen matrices. Use EXPECT_EIGEN_NEAR()
 template <typename Ta, typename Tb>

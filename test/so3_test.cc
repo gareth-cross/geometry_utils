@@ -75,16 +75,16 @@ class TestQuaternionExp : public ::testing::Test {
       TestOmega<double>(w, tol::kPico, tol::kNano);
       TestOmega<float>(w.cast<float>(), tol::kMicro, tol::kMilli / 10);
     }
-    for (const Eigen::Vector3d& w : kRandomRotationVectors) {
+    for (const Eigen::Vector3d& w : kRandomRotationVectorsZero2Pi) {
       TestOmega<double>(w, tol::kPico, tol::kNano);
       TestOmega<float>(w.cast<float>(), tol::kMicro, tol::kMilli / 10);
     }
   }
 
   void TestNearZero() const {
-    TestOmega<double>({1.0e-7, 0.5e-6, 3.5e-8}, tol::kNano, tol::kMicro);
+    TestOmega<double>({1.0e-7, 0.5e-7, 3.5e-8}, tol::kNano, tol::kMicro);
     TestOmega<double>({0.0, 0.0, 0.0}, tol::kNano, tol::kMicro);
-    TestOmega<float>({1.0e-7, 0.5e-6, 3.5e-8}, tol::kNano, tol::kMicro);
+    TestOmega<float>({1.0e-7, 0.5e-7, 3.5e-8}, tol::kNano, tol::kMicro);
     TestOmega<float>({0.0, 0.0, 0.0}, tol::kNano, tol::kMicro);
   }
 };
@@ -107,7 +107,7 @@ TEST(SO3Test, TestRotationLog) {
   EXPECT_EIGEN_NEAR(zero, RotationLog(Quaternion<double>::Identity()), tol::kPico);
   EXPECT_EIGEN_NEAR(zero.cast<float>(), RotationLog(Matrix<float, 3, 3>::Identity()), tol::kPico);
   // test some randomly sampled vectors
-  for (const Eigen::Vector3d& w : kRandomRotationVectors) {
+  for (const Eigen::Vector3d& w : kRandomRotationVectorsZero2Pi) {
     const Eigen::Matrix3d R = QuaternionExp(w).matrix();
     // make sure it's the same rotation we get back out
     EXPECT_EIGEN_NEAR(R, QuaternionExp(RotationLog(R)).matrix(), tol::kNano);
@@ -130,7 +130,7 @@ class TestSO3Jacobian : public ::testing::Test {
   }
 
   void TestGeneral() {
-    for (const Eigen::Vector3d& w : kRandomRotationVectors) {
+    for (const Eigen::Vector3d& w : kRandomRotationVectorsZero2Pi) {
       TestJacobian<double>(w, tol::kNano);
       TestJacobian<float>(w.cast<float>(), tol::kMilli / 10);
     }
@@ -161,15 +161,15 @@ class TestMatrixExpDerivative : public ::testing::Test {
   }
 
   void TestGeneral() {
-    for (const Eigen::Vector3d& w : kRandomRotationVectors) {
+    for (const Eigen::Vector3d& w : kRandomRotationVectorsZero2Pi) {
       TestDerivative<double>(w, tol::kNano / 10);
       TestDerivative<float>(w.cast<float>(), tol::kMilli / 10);
     }
   }
 
   void TestNearZero() {
-    TestDerivative<double>({-1.0e-7, 1.0e-8, 0.5e-6}, tol::kMicro);
-    TestDerivative<float>({-1.0e-7, 1.0e-8, 0.5e-6}, tol::kMicro);
+    TestDerivative<double>({-1.0e-7, 1.0e-8, 0.5e-7}, tol::kMicro);
+    TestDerivative<float>({-1.0e-7, 1.0e-8, 0.5e-7}, tol::kMicro);
 
     // at exactly zero it should be identically equal to the generators of SO(3)
     const Matrix<double, 9, 3> J_at_zero =
@@ -186,17 +186,72 @@ class TestMatrixExpDerivative : public ::testing::Test {
 TEST_FIXTURE(TestMatrixExpDerivative, TestGeneral)
 TEST_FIXTURE(TestMatrixExpDerivative, TestNearZero)
 
+class TestSO3LogRetractDerivative : public ::testing::Test {
+ public:
+  template <typename Scalar>
+  static Vector<Scalar, 9> VecExpMatrix(const Vector<Scalar, 3>& w) {
+    // Convert to vectorized format.
+    const Matrix<Scalar, 3, 3> R = math::QuaternionExp(w).matrix();
+    return Eigen::Map<const Vector<Scalar, 9>>(R.data());
+  }
+
+  template <typename Scalar>
+  static void TestDerivative(const Vector<Scalar, 3>& w, const Scalar deriv_tol) {
+    const Matrix<Scalar, 3, 3> J_analytical = math::SO3LogRetractDerivative(w);
+    // This jacobian is only valid for small `dw`, so evaluate about zero.
+    const Matrix<Scalar, 3, 3> J_numerical =
+        NumericalJacobian(Vector<Scalar, 3>::Zero(), [&](const Vector<Scalar, 3>& dw) {
+          return RotationLog(QuaternionExp(w) * QuaternionExp(dw));
+        });
+    ASSERT_EIGEN_NEAR(J_numerical, J_analytical, deriv_tol) << "w = " << w.transpose();
+  }
+
+  void TestGeneral() {
+    for (const Eigen::Vector3d& w : kRandomRotationVectorsZeroPi) {
+      TestDerivative<double>(w, tol::kNano / 10);
+      TestDerivative<float>(w.cast<float>(), tol::kMilli / 10);
+    }
+  }
+
+  void TestNearZero() {
+    // test small angle cases
+    // clang-format off
+    const std::vector<Vector<double, 3>> samples = {
+      {0.0, 0.0, 0.0},
+      {-1.0e-7, 1.0e-7, 0.3e-7},
+      {0.1e-10, 0.0, -0.1e-9},
+      {-0.2e-8, 0.3e-7, 0.0},
+      {-0.2312e-9, 0.0, 0.1153e-7},
+      {1.0e-12, 2.0e-12, 0.0},
+    };
+    // clang-format on
+    for (const auto& w : samples) {
+      TestDerivative<double>(w, tol::kNano);
+      TestDerivative<float>(w.cast<float>(), tol::kMicro);
+    }
+  }
+};
+
+TEST_FIXTURE(TestSO3LogRetractDerivative, TestGeneral)
+TEST_FIXTURE(TestSO3LogRetractDerivative, TestNearZero)
+
 // Have to be careful when testing this method numerically, since the output of log() can
 // jump around if the rotation R * exp(w) is large.
 TEST(SO3Test, SO3LogMulExpDerivative) {
   // create the matrix R we multiply against
-  const Vector<double, 3> R_log{0.6, -0.1, 0.4};
+  const Vector<double, 3> R_log{0.21, -0.25, 0.1};
   const Quaternion<double> R = math::QuaternionExp(R_log);
 
   // functor that holds R fixed and multiplies on w
   const auto fix_r_functor = [&](const Vector<double, 3>& w) -> Vector<double, 3> {
     return math::RotationLog(R * math::QuaternionExp(w));
   };
+
+  for (const auto& w : kRandomRotationVectorsZeroPi) {
+    const Matrix<double, 3, 3> J_analytical = math::SO3LogMulExpDerivative(R, w);
+    const Matrix<double, 3, 3> J_numerical = NumericalJacobian(w, fix_r_functor);
+    ASSERT_EIGEN_NEAR(J_numerical, J_analytical, tol::kNano) << "w = " << w.transpose();
+  }
 
   // try a bunch of values for omega
   // clang-format off
@@ -224,8 +279,8 @@ TEST(SO3Test, SO3LogMulExpDerivativeNearZero) {
   // clang-format off
   const std::vector<Vector<double, 3>> samples = {
     {0.0, 0.0, 0.0},
-    {-1.0e-5, 1.0e-5, 0.3e-5},
-    {0.1e-5, 0.0, -0.1e-5},
+    {-1.0e-7, 1.0e-7, 0.3e-7},
+    {0.1e-10, 0.0, -0.1e-9},
     {-0.2e-8, 0.3e-7, 0.0},
   };
   // clang-format on

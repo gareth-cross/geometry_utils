@@ -271,6 +271,34 @@ Matrix<Scalar, 9, 3> SO3ExpMatrixDerivative(const Vector<Scalar, 3>& w) {
   return result;
 }
 
+/*
+ * Computes the 3x3 Jacobian of:
+ *
+ *  v = log(exp([w]_x) * exp(d_w)) with respect to `d_w`, linearizing about d_w = 0.
+ *
+ * Note that we are not taking the derivative wrt the argument, but wrt to d_w.
+ */
+template <typename Derived>
+Matrix<ScalarType<Derived>, 3, 3> SO3LogRetractDerivative(const Eigen::MatrixBase<Derived>& w_xpr) {
+  using Scalar = ScalarType<Derived>;
+  const Matrix<Scalar, 3, 1> w = w_xpr.eval();
+  const Scalar theta = w.norm();
+  Eigen::Matrix<Scalar, 3, 3> J = Eigen::Matrix<Scalar, 3, 3>::Zero();
+  if (theta < static_cast<Scalar>(1.0e-6)) {
+    // small angle approximation
+    J.diagonal().setConstant(1);
+    J.noalias() += Skew3(w * 0.5);
+    J.noalias() += w * w.transpose() * static_cast<Scalar>(1) / static_cast<Scalar>(12);
+  } else {
+    const Scalar cos = std::cos(theta);
+    const Scalar sin = std::sin(theta);
+    J.diagonal().setConstant(theta * (cos + 1) / (2 * sin));
+    J.noalias() += Skew3(w * 0.5);
+    J.noalias() += w * w.transpose() * -(1 + cos - 2 * sin / theta) / (2 * theta * sin);
+  }
+  return J;
+}
+
 /**
  * Computes the 3x3 Jacobian of `v = log(R * exp([w]_x))` with respect to `w`.
  *
