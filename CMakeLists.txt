@@ -23,6 +23,7 @@ add_library(${PROJECT_NAME} INTERFACE)
 target_compile_features(${PROJECT_NAME} INTERFACE cxx_std_14)
 
 # Specify both build and install include location
+# TODO(gareth): Not sure this is correct
 target_include_directories(${PROJECT_NAME} 
   INTERFACE 
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
