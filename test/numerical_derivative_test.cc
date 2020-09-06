@@ -1,7 +1,7 @@
-#include <cmath>
 #include "numerical_derivative.hpp"
-#include "test_utils.hpp"
+#include <cmath>
 #include "so3.hpp"
+#include "test_utils.hpp"
 
 namespace math {
 

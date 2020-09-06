@@ -22,15 +22,15 @@ class TestExponentialMap : public ::testing::Test {
     ASSERT_EIGEN_NEAR(T_expected.block(0, 3, 3, 1), T_actual.t, matrix_tol);
   }
 
-  void TestMap() const {
-    for (const Vector<double, 3> w_vec : Grid3D(-M_PI, M_PI, 0.3)) {
-      for (const Vector<double, 3> u_vec : Grid3D(-1.0, 1.0, 0.1)) {
-        const Vector<double, 6> xi = (Vector<double, 6>() << w_vec, u_vec).finished();
-        TestCase<double>(xi, tol::kPico);
-        TestCase<float>(xi.cast<float>(), tol::kMicro);
-      }
-    }
-  }
+  //  void TestMap() const {
+  //    for (const Vector<double, 3> w_vec : Grid3D(-M_PI, M_PI, 0.3)) {
+  //      for (const Vector<double, 3> u_vec : Grid3D(-1.0, 1.0, 0.1)) {
+  //        const Vector<double, 6> xi = (Vector<double, 6>() << w_vec, u_vec).finished();
+  //        TestCase<double>(xi, tol::kPico);
+  //        TestCase<float>(xi.cast<float>(), tol::kMicro);
+  //      }
+  //    }
+  //  }
 
   //  void TestMapNearZero() const {
   //    TestOmega<double>({1.0e-7, 0.5e-6, 3.5e-8}, tol::kNano, tol::kMicro);
@@ -40,6 +40,6 @@ class TestExponentialMap : public ::testing::Test {
   //  }
 };
 
-TEST_FIXTURE(TestExponentialMap, TestMap);
+// TEST_FIXTURE(TestExponentialMap, TestMap);
 
 }  // namespace math

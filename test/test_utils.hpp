@@ -59,10 +59,6 @@ testing::AssertionResult expectEigenNear(const std::string& name_a, const std::s
 /// Create a vector in the specified range.
 /// Begins at `start` and increments by `step` until >= `end`.
 std::vector<double> Range(double start, double end, double step);
-
-/// Create a vector of 3D vectors that correspond to a uniform grid.
-std::vector<Eigen::VectorXd> Grid3D(double start, double end, double step);
-
 /**
  * @brief Exponential map via power series. Computes the value of exp(A), where A is a square
  *  matrix.

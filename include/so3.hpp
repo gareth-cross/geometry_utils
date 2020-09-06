@@ -2,6 +2,12 @@
 #include "internal_utils.hpp"
 #include "matrix_types.hpp"
 
+/*
+ * Some useful functions for SO(3) and its derivatives. I am only bothering to define
+ * the right-side jacobians, since that is why I use.
+ *
+ * Tests in so3_test.cc
+ */
 namespace math {
 
 /**
@@ -52,23 +58,47 @@ Matrix<typename Eigen::QuaternionBase<Derived>::Scalar, 4, 4> QuaternionMulMatri
 }
 
 /**
+ * Convert rotation vector in so(3) to quaternion. Returns quaternion corresponding to the
+ * rotation matrix `R`, where: R = exp([w]_x).
+ *
+ * `w` must be convertible to a 3-element vector.
+ *
+ * As `|w| -> 0`, we take the limit and use a small angle approximation.
+ */
+template <typename Derived>
+Quaternion<ScalarType<Derived>> QuaternionExp(const Eigen::MatrixBase<Derived>& w_xpr) {
+  using Scalar = ScalarType<Derived>;
+  constexpr Scalar kZeroTol = static_cast<Scalar>(1.0e-6);
+  const Scalar angle = w_xpr.norm();
+  // Fill out the quaternion.
+  Eigen::Quaternion<Scalar> q;
+  q.w() = std::cos(angle / 2);
+  if (angle < kZeroTol) {
+    q.vec() = w_xpr / 2;
+    q.normalize();
+  } else {
+    const Scalar sinc_ha_2 = std::sin(angle / 2) / angle;
+    q.vec() = w_xpr * sinc_ha_2;
+  }
+  return q;
+}
+
+/**
  * Convert vector in so(3) to quaternion. Returns quaternion corresponding to the
- * rotation matrix `R`, where: R = exp([w]_x). `w` must be convertible to a
- * 3-element vector.
+ * rotation matrix `R`, where: R = exp([w]_x).
+ *
+ * `w` must be convertible to a 3-element vector.
  *
  * Also returns the 4x3 jacobian of the quaternion elements [w, x, y, z] wrt the
  * rodrigues parameters `w` (omega).
  *
  * As `|w| -> 0`, we take the limit and use a small angle approximation.
- *
- * kComputeDerivative is used to toggle off derivative computation in other methods.
  */
-template <typename Scalar, bool kComputeDerivative = true>
+template <typename Scalar>
 struct QuaternionExpDerivative {
   // Construct from rodrigues parameters.
   QuaternionExpDerivative(const Vector<Scalar, 3>& w) {
-    // TODO(gareth): Argument on zero-tolerance.
-    constexpr Scalar kZeroTol = static_cast<Scalar>(1.0e-5);
+    constexpr Scalar kZeroTol = static_cast<Scalar>(1.0e-6);
     const Scalar angle = w.norm();
     // Fill out the quaternion.
     q.w() = std::cos(angle / 2);
@@ -77,23 +107,19 @@ struct QuaternionExpDerivative {
       q.vec() = w / 2;
       q.normalize();
       // d(q.w) / d(w) = -sin(theta / 2) * (1 / 2) * (w^T / theta) = -[q.x, q.y, q.z]^T
-      if (kComputeDerivative) {
-        q_D_w.template topRows<1>() = -q.vec().transpose() / 2;
-        q_D_w.template bottomRows<3>().setIdentity();
-        q_D_w.template bottomRows<3>().diagonal() *= static_cast<Scalar>(0.5);
-      }
+      q_D_w.template topRows<1>() = -q.vec().transpose() / 2;
+      q_D_w.template bottomRows<3>().setIdentity();
+      q_D_w.template bottomRows<3>().diagonal() *= static_cast<Scalar>(0.5);
     } else {
       const Scalar sinc_ha_2 = std::sin(angle / 2) / angle;
       q.vec() = w * sinc_ha_2;
       // Fill out derivtive part. First row is same in both cases (small/large).
-      if (kComputeDerivative) {
-        const Vector<Scalar, 3> w_hat = w / angle;
-        q_D_w.template topRows<1>() = -q.vec().transpose() / 2;
-        q_D_w.template bottomRows<3>().setIdentity();
-        q_D_w.template bottomRows<3>().diagonal() *= sinc_ha_2;
-        q_D_w.template bottomRows<3>().noalias() +=
-            w_hat * (w_hat.transpose() * (q.w() / 2 - sinc_ha_2));
-      }
+      const Vector<Scalar, 3> w_hat = w / angle;
+      q_D_w.template topRows<1>() = -q.vec().transpose() / 2;
+      q_D_w.template bottomRows<3>().setIdentity();
+      q_D_w.template bottomRows<3>().diagonal() *= sinc_ha_2;
+      q_D_w.template bottomRows<3>().noalias() +=
+          w_hat * (w_hat.transpose() * (q.w() / 2 - sinc_ha_2));
     }
   }
 
@@ -105,19 +131,6 @@ struct QuaternionExpDerivative {
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
-
-/**
- * Convert vector in so(3) to quaternion. Returns quaternion corresponding to the
- * rotation matrix `R`, where: R = exp([w]_x). `w` must be convertible to a
- * 3-element vector.
- *
- * As `|w| -> 0`, we take the limit and use a small angle approximation.
- */
-template <typename Derived>
-Quaternion<ScalarType<Derived>> QuaternionExp(const Eigen::MatrixBase<Derived>& w_wxpr) {
-  using Scalar = ScalarType<Derived>;
-  return QuaternionExpDerivative<Scalar, false>(w_wxpr.eval()).q;
-}
 
 /**
  * Convert a rotation type (either Matrix3 or Quaternion) to rodrigues vector.
@@ -139,11 +152,26 @@ Vector<typename RotationType::Scalar, 3> RotationLog(const RotationType& rot) {
 /**
  * Compute the jacobian of SO(3), for a given rodrigues rotation vector.
  *
- * If `right` is true, computes the inverse right-jacobian
+ * This is the jacobian of:
+ *
+ *   log(exp(w)^-1 * exp(w + dw)) with respect to dw, linearized about dw = 0
+ *
+ *
+ *
+ * This is refered to as the 'left jacobian' of SO(3) in:
+ *
+ *  "Associating Uncertainty With Three-Dimensional Poses for Use in
+ *   Estimation Problems", Tim Barfoot and Paul Furgale, 2014
+ *
+ * This is also the matrix (sometimes denoted V) when evluating the exponential
+ * map of SE(3):
+ *
+ *   exp([w, u]^) = [exp(w), J * u] where J * u is the translation of the pose on SE(3).
+ *
+ * High-level derivation is on slide 43 of my 3D transformations slides.
  */
 template <typename Derived>
-Matrix<ScalarType<Derived>, 3, 3> SO3Jacobian(const Eigen::MatrixBase<Derived>& w,
-                                              const bool right = true) {
+Matrix<ScalarType<Derived>, 3, 3> SO3Jacobian(const Eigen::MatrixBase<Derived>& w) {
   using Scalar = ScalarType<Derived>;
   const Scalar theta = w.norm();
   const Scalar theta2 = theta * theta;
@@ -152,9 +180,8 @@ Matrix<ScalarType<Derived>, 3, 3> SO3Jacobian(const Eigen::MatrixBase<Derived>& 
     // Do nothing, identity is the approximation.
   } else {
     const Scalar sinc_theta = std::sin(theta) / theta;
-    const Scalar skew_sign = right ? static_cast<Scalar>(-1) : static_cast<Scalar>(1);
     J.diagonal() *= sinc_theta;
-    J.noalias() += Skew3(w * (1 - std::cos(theta)) * skew_sign / theta2);
+    J.noalias() -= Skew3(w * (1 - std::cos(theta)) / theta2);
     J.noalias() += w * (w.transpose() * (1 - sinc_theta) / theta2);
   }
   return J;
@@ -162,11 +189,14 @@ Matrix<ScalarType<Derived>, 3, 3> SO3Jacobian(const Eigen::MatrixBase<Derived>& 
 
 /**
  * Derivative of the exponential map: so(3) -> SO(3).
+ *
  * Returns the 9x3 jacobian of the elements of the 3x3 rotation matrix R = exp([w]_x) with
  * respect to the 3-element rodrigues vector `w`.
  *
  * This is the derivative `dvec(exp([w]_x)) / dw` where `vec` unpacks a matrix in
  * column order.
+ *
+ * This is the matrix version of QuaternionExpDerivative.
  */
 template <typename Scalar>
 Matrix<Scalar, 9, 3> SO3ExpMatrixDerivative(const Vector<Scalar, 3>& w) {
@@ -213,7 +243,6 @@ Matrix<Scalar, 9, 3> SO3ExpMatrixDerivative(const Vector<Scalar, 3>& w) {
     bottom_block(1, 0) = -sinc_theta;
 
     // The asymmetric part of the theta^-2 term.
-    // TODO(gareth): Write this in closed form.
     const Scalar asym_theta2_coeff = (1 - cos_theta) / theta2;
     top_block +=
         (I3 * w.x() + w * i_hat.transpose() - 2 * i_hat * w.transpose()) * asym_theta2_coeff;
@@ -240,22 +269,21 @@ Matrix<Scalar, 9, 3> SO3ExpMatrixDerivative(const Vector<Scalar, 3>& w) {
 }
 
 /**
- * Computes the 3x3 Jacobian of `v = log(R * exp([w]_x))` wrt `w`.
+ * Computes the 3x3 Jacobian of `v = log(R * exp([w]_x))` with respect to `w`.
  *
  * `R` is represented as a quaternion. `v` is the resulting rodrigues parameters
  * corresponding to the combined rotation `R * exp([w]_x)`.
  *
- * TODO(gareth): The name of this method is misleading, this doesn't really seem
- * like the derivative that would be associated w/ retraction. Figure out what this
- * should really be called.
+ * TODO(gareth): The name of this method is a bit muddled, but I'm not
+ * sure what else to call it.
  */
 template <typename Scalar>
-Matrix<Scalar, 3, 3> SO3RetractDerivative(const Quaternion<Scalar>& R, const Vector<Scalar, 3>& w) {
+Matrix<Scalar, 3, 3> SO3LogMulExpDerivative(const Quaternion<Scalar>& R,
+                                            const Vector<Scalar, 3>& w) {
   const Quaternion<Scalar> exp_w = QuaternionExp(w);
   const Matrix<Scalar, 3, 3> B = (R * exp_w).matrix();
 
   // Derivative of exponential map.
-  // TODO(gareth): Use the quaternion version here for this - less wasteful.
   const Matrix<Scalar, 9, 3> exp_w_D_w = SO3ExpMatrixDerivative(w);
   const auto exp_w_D_w_top = exp_w_D_w.template topRows<3>();
   const auto exp_w_D_w_middle = exp_w_D_w.template block<3, 3>(3, 0);
@@ -282,7 +310,7 @@ Matrix<Scalar, 3, 3> SO3RetractDerivative(const Quaternion<Scalar>& R, const Vec
   const Eigen::AngleAxis<Scalar> aa(B);
   const Scalar& theta = aa.angle();
 
-  if (theta < static_cast<Scalar>(1.0e-5)) {
+  if (theta < static_cast<Scalar>(1.0e-6)) {
     // zero angle case, take the limit
     return v_prime_D_w * static_cast<Scalar>(0.5);
   }
