@@ -20,6 +20,7 @@ void printImpl(const std::string& name, Xpr xpr) {
   std::cout << name << "=" << xpr << std::endl;
 }
 
+// Define a test on a class.
 #define TEST_FIXTURE(object, function) \
   TEST_F(object, function) { function(); }
 

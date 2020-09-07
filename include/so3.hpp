@@ -148,7 +148,7 @@ Vector<typename RotationType::Scalar, 3> RotationLog(const RotationType& rot) {
  *   log(exp(w)^-1 * exp(w + dw)) with respect to dw, linearized about dw = 0
  *
  * It is also the inverse of the result of SO3JacobianInverse(), evaluated
- * analytically. You can obtain this as follows:
+ * analytically. You can obtain that relation as follows:
  *
  *    exp(v + dv) = exp(w) * exp(dw)
  *
@@ -160,15 +160,27 @@ Vector<typename RotationType::Scalar, 3> RotationLog(const RotationType& rot) {
  *
  *    J = dv/dw = d(log[exp(w) * exp(dw)]) / dw
  *
- * Hence dw/dv = J^-1 (which is invertible). J^-1 converts the additive perturbation of `dv`
- * to the rotational composition of `dw`(to first order).
+ * Then dw/dv = J^-1 (which is invertible). J^-1 converts the additive perturbation of `dv`
+ * to the group perturbation of `dw`(to first order):
  *
- * In addition, if you are executing the exponential map of SE(3):
+ *   exp(w + dw) ~= exp(w) * exp(dw)  (Note: Approximate, valid only for small dw).
+ *
+ * You might care about this derivative, for example, if you were integrating gyroscope data:
+ *
+ *    world_R_body[k+1] * exp(dR) = world_R_body[k] * exp(gyro + dGyro)
+ *
+ * The perturbation of the gyroscope data (dGyro) is additive, and we must propagate it onto
+ * the body-frame tangent space of our integrated rotation, dR.
+ *
+ * In addition, if you were to execute the exponential map of SE(3):
  *
  *   exp([w_x, u]) = [exp(w_x) V(w) * u]
  *
  * The matrix V(w) is just SO3Jacobian(-w). In this context it is sometimes referred to
- * as the "left jacobian of SO(3)". You can see this in more detail in:
+ * as the "left jacobian of SO(3)". Note that argument `w` was negated to get this relationship,
+ * so the two jacobians are not equivalent.
+ *
+ * You can see this in more detail in:
  *
  * "Associating Uncertainty With Three-Dimensional Poses for Use in Estimation Problems"
  *   Tim. Barfoot and Paul Furgale, 2014
@@ -223,9 +235,19 @@ Matrix<ScalarType<Derived>, 3, 3> SO3JacobianInverse(const Eigen::MatrixBase<Der
 }
 
 /**
+ * Compute the derivative of: `f(dw) = R * exp([dw]_x) * p` with respect to `dw`, linearizing
+ * about dw = 0. Note this is only the derivative wrt the tangent-space of R.
+ */
+template <typename Scalar>
+Matrix<Scalar, 3, 3> RotateVectorTangentJacobian(const Eigen::Quaternion<Scalar>& R,
+                                                 const Vector<Scalar, 3>& p) {
+  return R * Skew3(-p);
+}
+
+/**
  * Derivative of the exponential map: so(3) -> SO(3).
  *
- * Returns the 9x3 jacobian of the elements of the 3x3 rotation matrix R = exp([w]_x) with
+ * Returns the 9x3 jacobian of the elements of the 3x3 rotation matrix `R = exp([w]_x)` with
  * respect to the 3-element rodrigues vector `w`.
  *
  * This is the derivative `dvec(exp([w]_x)) / dw` where `vec` unpacks a matrix in
@@ -233,7 +255,7 @@ Matrix<ScalarType<Derived>, 3, 3> SO3JacobianInverse(const Eigen::MatrixBase<Der
  *
  * This is the matrix version of QuaternionExpDerivative.
  *
- * TODO(gareth): It's possible this has a simpler form. I went as far as condensing it to
+ * TODO(gareth): It is possible this has a simpler form. I went as far as condensing it to
  * terms proportional to 1 / theta^-4 and stopped.
  */
 template <typename Scalar>
@@ -262,7 +284,7 @@ Matrix<Scalar, 9, 3> SO3ExpMatrixDerivative(const Vector<Scalar, 3>& w) {
   // Experssion for product of skew(w) * skew(w)
   const Matrix<Scalar, 3, 3> skew_w_sqr = w_outer_prod - I3 * theta2;
 
-  if (theta2 < static_cast<Scalar>(1.0e-10)) {
+  if (theta2 < static_cast<Scalar>(1.0e-12)) {
     // take the limit near zero
     top_block(1, 2) = 1;
     top_block(2, 1) = -1;
@@ -311,6 +333,10 @@ Matrix<Scalar, 9, 3> SO3ExpMatrixDerivative(const Vector<Scalar, 3>& w) {
  *
  * `R` is represented as a quaternion. `v` is the resulting rodrigues parameters
  * corresponding to the combined rotation `R * exp([w]_x)`.
+ *
+ * Note that this is distinct from SO3JacobianInverse, because in this context
+ * we are taking the derivative wrt to the argument `w`, and this need not be
+ * evaluated about zero.
  *
  * TODO(gareth): The name of this method is a bit muddled, but I'm not
  * sure what else to call it.

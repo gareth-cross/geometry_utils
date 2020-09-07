@@ -179,50 +179,6 @@ class TestSO3Jacobian : public ::testing::Test {
 TEST_FIXTURE(TestSO3Jacobian, TestGeneral)
 TEST_FIXTURE(TestSO3Jacobian, TestNearZero)
 
-// Test the derivative of the exponential map, matrix form.
-class TestMatrixExpDerivative : public ::testing::Test {
- public:
-  template <typename Scalar>
-  static Vector<Scalar, 9> VecExpMatrix(const Vector<Scalar, 3>& w) {
-    // Convert to vectorized format.
-    const Matrix<Scalar, 3, 3> R = math::QuaternionExp(w).matrix();
-    return Eigen::Map<const Vector<Scalar, 9>>(R.data());
-  }
-
-  template <typename Scalar>
-  static void TestDerivative(const Vector<Scalar, 3>& w, const Scalar deriv_tol) {
-    const Matrix<Scalar, 9, 3> D_w = math::SO3ExpMatrixDerivative(w);
-    const Matrix<Scalar, 9, 3> J_numerical =
-        NumericalJacobian(w, &TestMatrixExpDerivative::VecExpMatrix<Scalar>);
-    ASSERT_EIGEN_NEAR(J_numerical, D_w, deriv_tol);
-  }
-
-  void TestGeneral() {
-    for (const Eigen::Vector3d& w : kRandomRotationVectorsZero2Pi) {
-      TestDerivative<double>(w, tol::kNano / 10);
-      TestDerivative<float>(w.cast<float>(), tol::kMilli / 10);
-    }
-  }
-
-  void TestNearZero() {
-    TestDerivative<double>({-1.0e-7, 1.0e-8, 0.5e-7}, tol::kMicro);
-    TestDerivative<float>({-1.0e-7, 1.0e-8, 0.5e-7}, tol::kMicro);
-
-    // at exactly zero it should be identically equal to the generators of SO(3)
-    const Matrix<double, 9, 3> J_at_zero =
-        math::SO3ExpMatrixDerivative(Vector<double, 3>::Zero().eval());
-    const auto i_hat = Vector<double, 3>::UnitX();
-    const auto j_hat = Vector<double, 3>::UnitY();
-    const auto k_hat = Vector<double, 3>::UnitZ();
-    EXPECT_EIGEN_NEAR(Skew3(-i_hat), J_at_zero.block(0, 0, 3, 3), tol::kPico);
-    EXPECT_EIGEN_NEAR(Skew3(-j_hat), J_at_zero.block(3, 0, 3, 3), tol::kPico);
-    EXPECT_EIGEN_NEAR(Skew3(-k_hat), J_at_zero.block(6, 0, 3, 3), tol::kPico);
-  }
-};
-
-TEST_FIXTURE(TestMatrixExpDerivative, TestGeneral)
-TEST_FIXTURE(TestMatrixExpDerivative, TestNearZero)
-
 class TestSO3DerivativeInverse : public ::testing::Test {
  public:
   template <typename Scalar>
@@ -286,6 +242,72 @@ class TestSO3DerivativeInverse : public ::testing::Test {
 TEST_FIXTURE(TestSO3DerivativeInverse, TestGeneral)
 TEST_FIXTURE(TestSO3DerivativeInverse, TestNearZero)
 
+// Test derivative for rotating a point.
+TEST(SO3Test, RotateVectorTangentJacobian) {
+  const std::vector<Eigen::Vector3d> points = {
+      {0, 0, 0},
+      {1.0, -5.0, 3.0},
+      {0.02, -1.2, 0.02},
+  };
+  for (const auto& w : kRandomRotationVectorsZero2Pi) {
+    for (const auto& p : points) {
+      // compute jacobian analytically
+      const Matrix<double, 3, 3> J_analytical =
+          math::RotateVectorTangentJacobian(QuaternionExp(w), p);
+      // compute numerically
+      const Matrix<double, 3, 3> J_numerical = NumericalJacobian(
+          Eigen::Vector3d::Zero(), [&](const Vector<double, 3>& dw) -> Vector<double, 3> {
+            return (QuaternionExp(w) * QuaternionExp(dw)).matrix() * p;
+          });
+      ASSERT_EIGEN_NEAR(J_analytical, J_numerical, tol::kPico);
+    }
+  }
+}
+
+// Test the derivative of the exponential map, matrix form.
+class TestMatrixExpDerivative : public ::testing::Test {
+ public:
+  template <typename Scalar>
+  static Vector<Scalar, 9> VecExpMatrix(const Vector<Scalar, 3>& w) {
+    // Convert to vectorized format.
+    const Matrix<Scalar, 3, 3> R = math::QuaternionExp(w).matrix();
+    return Eigen::Map<const Vector<Scalar, 9>>(R.data());
+  }
+
+  template <typename Scalar>
+  static void TestDerivative(const Vector<Scalar, 3>& w, const Scalar deriv_tol) {
+    const Matrix<Scalar, 9, 3> D_w = math::SO3ExpMatrixDerivative(w);
+    const Matrix<Scalar, 9, 3> J_numerical =
+        NumericalJacobian(w, &TestMatrixExpDerivative::VecExpMatrix<Scalar>);
+    ASSERT_EIGEN_NEAR(J_numerical, D_w, deriv_tol);
+  }
+
+  void TestGeneral() {
+    for (const Eigen::Vector3d& w : kRandomRotationVectorsZero2Pi) {
+      TestDerivative<double>(w, tol::kNano / 10);
+      TestDerivative<float>(w.cast<float>(), tol::kMilli / 10);
+    }
+  }
+
+  void TestNearZero() {
+    TestDerivative<double>({-1.0e-7, 1.0e-8, 0.5e-7}, tol::kMicro);
+    TestDerivative<float>({-1.0e-7, 1.0e-8, 0.5e-7}, tol::kMicro);
+
+    // at exactly zero it should be identically equal to the generators of SO(3)
+    const Matrix<double, 9, 3> J_at_zero =
+        math::SO3ExpMatrixDerivative(Vector<double, 3>::Zero().eval());
+    const auto i_hat = Vector<double, 3>::UnitX();
+    const auto j_hat = Vector<double, 3>::UnitY();
+    const auto k_hat = Vector<double, 3>::UnitZ();
+    EXPECT_EIGEN_NEAR(Skew3(-i_hat), J_at_zero.block(0, 0, 3, 3), tol::kPico);
+    EXPECT_EIGEN_NEAR(Skew3(-j_hat), J_at_zero.block(3, 0, 3, 3), tol::kPico);
+    EXPECT_EIGEN_NEAR(Skew3(-k_hat), J_at_zero.block(6, 0, 3, 3), tol::kPico);
+  }
+};
+
+TEST_FIXTURE(TestMatrixExpDerivative, TestGeneral)
+TEST_FIXTURE(TestMatrixExpDerivative, TestNearZero)
+
 // Have to be careful when testing this method numerically, since the output of log() can
 // jump around if the rotation R * exp(w) is large.
 TEST(SO3Test, SO3LogMulExpDerivative) {
@@ -298,6 +320,7 @@ TEST(SO3Test, SO3LogMulExpDerivative) {
     return math::RotationLog(R * math::QuaternionExp(w));
   };
 
+  // do a bunch of random ones too
   for (const auto& w : kRandomRotationVectorsZeroPi) {
     const Matrix<double, 3, 3> J_analytical = math::SO3LogMulExpDerivative(R, w);
     const Matrix<double, 3, 3> J_numerical = NumericalJacobian(w, fix_r_functor);
