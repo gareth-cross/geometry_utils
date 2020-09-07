@@ -1,5 +1,7 @@
 #include "numerical_derivative.hpp"
+
 #include <cmath>
+
 #include "so3.hpp"
 #include "test_utils.hpp"
 

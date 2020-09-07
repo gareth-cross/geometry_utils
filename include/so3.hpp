@@ -8,7 +8,6 @@
  *
  * Tests in so3_test.cc
  *
- * TODO(gareth): Make the names more consistent?
  * TODO(gareth): Potentially add the jacobians for rotation composition on SO(3), although
  * they are fairly simple.
  */
@@ -96,7 +95,7 @@ Quaternion<ScalarType<Derived>> QuaternionExp(const Eigen::MatrixBase<Derived>& 
  * As `|w| -> 0`, we take the limit and use a small angle approximation.
  */
 template <typename Derived>
-Matrix<ScalarType<Derived>, 4, 3> QuaternionExpDerivative(const Eigen::MatrixBase<Derived>& w_xpr) {
+Matrix<ScalarType<Derived>, 4, 3> QuaternionExpJacobian(const Eigen::MatrixBase<Derived>& w_xpr) {
   using Scalar = ScalarType<Derived>;
   constexpr Scalar kZeroTol = static_cast<Scalar>(1.0e-6);
   const Vector<Scalar, 3> w = w_xpr.eval();
@@ -257,13 +256,13 @@ Matrix<Scalar, 3, 3> RotateVectorSO3TangentJacobian(const Eigen::Quaternion<Scal
  * This is the derivative `dvec(exp([w]_x)) / dw` where `vec` unpacks a matrix in
  * column order.
  *
- * This is the matrix version of QuaternionExpDerivative.
+ * This is the matrix version of QuaternionExpJacobian.
  *
  * TODO(gareth): It is possible this has a simpler form. I went as far as condensing it to
  * terms proportional to 1 / theta^-4 and stopped.
  */
 template <typename Scalar>
-Matrix<Scalar, 9, 3> SO3ExpMatrixDerivative(const Vector<Scalar, 3>& w) {
+Matrix<Scalar, 9, 3> SO3ExpMatrixJacobian(const Vector<Scalar, 3>& w) {
   const Scalar theta2 = w.squaredNorm();
   const Scalar theta = std::sqrt(theta2);
   const Scalar sin_theta = std::sin(theta);
@@ -346,13 +345,12 @@ Matrix<Scalar, 9, 3> SO3ExpMatrixDerivative(const Vector<Scalar, 3>& w) {
  * sure what else to call it.
  */
 template <typename Scalar>
-Matrix<Scalar, 3, 3> SO3LogMulExpDerivative(const Quaternion<Scalar>& R,
-                                            const Vector<Scalar, 3>& w) {
+Matrix<Scalar, 3, 3> SO3LogMulExpJacobian(const Quaternion<Scalar>& R, const Vector<Scalar, 3>& w) {
   const Quaternion<Scalar> exp_w = QuaternionExp(w);
   const Matrix<Scalar, 3, 3> B = (R * exp_w).matrix();
 
   // Derivative of exponential map.
-  const Matrix<Scalar, 9, 3> exp_w_D_w = SO3ExpMatrixDerivative(w);
+  const Matrix<Scalar, 9, 3> exp_w_D_w = SO3ExpMatrixJacobian(w);
   const auto exp_w_D_w_top = exp_w_D_w.template topRows<3>();
   const auto exp_w_D_w_middle = exp_w_D_w.template block<3, 3>(3, 0);
   const auto exp_w_D_w_bottom = exp_w_D_w.template bottomRows<3>();

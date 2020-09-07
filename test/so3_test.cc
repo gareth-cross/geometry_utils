@@ -46,7 +46,7 @@ class TestQuaternionExp : public ::testing::Test {
                  const Scalar deriv_tol) const {
     // check that the derivative and non-derivative versions are the same
     const Quaternion<Scalar> q = math::QuaternionExp(w);
-    const Matrix<Scalar, 4, 3> q_D_w = QuaternionExpDerivative(w);
+    const Matrix<Scalar, 4, 3> q_D_w = QuaternionExpJacobian(w);
 
     // compare to the exponential map as a power series ~ 50 terms
     ASSERT_EIGEN_NEAR(ExpMatrixSeries(Skew3(w), 50), q.matrix(), matrix_tol)
@@ -272,7 +272,7 @@ TEST(SO3Test, RotateVectorSO3TangentJacobian) {
 }
 
 // Test the derivative of the exponential map, matrix form.
-class TestMatrixExpDerivative : public ::testing::Test {
+class TestMatrixExpJacobian : public ::testing::Test {
  public:
   template <typename Scalar>
   static Vector<Scalar, 9> VecExpMatrix(const Vector<Scalar, 3>& w) {
@@ -283,9 +283,9 @@ class TestMatrixExpDerivative : public ::testing::Test {
 
   template <typename Scalar>
   static void TestDerivative(const Vector<Scalar, 3>& w, const Scalar deriv_tol) {
-    const Matrix<Scalar, 9, 3> D_w = math::SO3ExpMatrixDerivative(w);
+    const Matrix<Scalar, 9, 3> D_w = math::SO3ExpMatrixJacobian(w);
     const Matrix<Scalar, 9, 3> J_numerical =
-        NumericalJacobian(w, &TestMatrixExpDerivative::VecExpMatrix<Scalar>);
+        NumericalJacobian(w, &TestMatrixExpJacobian::VecExpMatrix<Scalar>);
     ASSERT_EIGEN_NEAR(J_numerical, D_w, deriv_tol);
   }
 
@@ -302,7 +302,7 @@ class TestMatrixExpDerivative : public ::testing::Test {
 
     // at exactly zero it should be identically equal to the generators of SO(3)
     const Matrix<double, 9, 3> J_at_zero =
-        math::SO3ExpMatrixDerivative(Vector<double, 3>::Zero().eval());
+        math::SO3ExpMatrixJacobian(Vector<double, 3>::Zero().eval());
     const auto i_hat = Vector<double, 3>::UnitX();
     const auto j_hat = Vector<double, 3>::UnitY();
     const auto k_hat = Vector<double, 3>::UnitZ();
@@ -312,12 +312,12 @@ class TestMatrixExpDerivative : public ::testing::Test {
   }
 };
 
-TEST_FIXTURE(TestMatrixExpDerivative, TestGeneral)
-TEST_FIXTURE(TestMatrixExpDerivative, TestNearZero)
+TEST_FIXTURE(TestMatrixExpJacobian, TestGeneral)
+TEST_FIXTURE(TestMatrixExpJacobian, TestNearZero)
 
 // Have to be careful when testing this method numerically, since the output of log() can
 // jump around if the rotation R * exp(w) is large.
-TEST(SO3Test, SO3LogMulExpDerivative) {
+TEST(SO3Test, SO3LogMulExpJacobian) {
   // create the matrix R we multiply against
   const Vector<double, 3> R_log{0.21, -0.25, 0.1};
   const Quaternion<double> R = math::QuaternionExp(R_log);
@@ -329,7 +329,7 @@ TEST(SO3Test, SO3LogMulExpDerivative) {
 
   // do a bunch of random ones too
   for (const auto& w : kRandomRotationVectorsZeroPi) {
-    const Matrix<double, 3, 3> J_analytical = math::SO3LogMulExpDerivative(R, w);
+    const Matrix<double, 3, 3> J_analytical = math::SO3LogMulExpJacobian(R, w);
     const Matrix<double, 3, 3> J_numerical = NumericalJacobian(w, fix_r_functor);
     ASSERT_EIGEN_NEAR(J_numerical, J_analytical, tol::kNano) << "w = " << w.transpose();
   }
@@ -349,13 +349,13 @@ TEST(SO3Test, SO3LogMulExpDerivative) {
   };
   // clang-format on
   for (const auto& w : samples) {
-    const Matrix<double, 3, 3> J_analytical = math::SO3LogMulExpDerivative(R, w);
+    const Matrix<double, 3, 3> J_analytical = math::SO3LogMulExpJacobian(R, w);
     const Matrix<double, 3, 3> J_numerical = NumericalJacobian(w, fix_r_functor);
     ASSERT_EIGEN_NEAR(J_numerical, J_analytical, tol::kNano) << "w = " << w.transpose();
   }
 }
 
-TEST(SO3Test, SO3LogMulExpDerivativeNearZero) {
+TEST(SO3Test, SO3LogMulExpJacobianNearZero) {
   // test small angle cases
   // clang-format off
   const std::vector<Vector<double, 3>> samples = {
@@ -375,7 +375,7 @@ TEST(SO3Test, SO3LogMulExpDerivativeNearZero) {
   };
 
   for (const auto& w : samples) {
-    const Matrix<double, 3, 3> J_analytical = math::SO3LogMulExpDerivative(R, w);
+    const Matrix<double, 3, 3> J_analytical = math::SO3LogMulExpJacobian(R, w);
     const Matrix<double, 3, 3> J_numerical = NumericalJacobian(w, fix_r_functor);
     ASSERT_EIGEN_NEAR(J_numerical, J_analytical, tol::kNano);
   }
