@@ -84,53 +84,44 @@ Quaternion<ScalarType<Derived>> QuaternionExp(const Eigen::MatrixBase<Derived>& 
 }
 
 /**
- * Convert vector in so(3) to quaternion. Returns quaternion corresponding to the
- * rotation matrix `R`, where: R = exp([w]_x).
+ * The derivative of QuaternionExp.
  *
- * `w` must be convertible to a 3-element vector.
- *
- * Also returns the 4x3 jacobian of the quaternion elements [w, x, y, z] wrt the
+ * Returns the 4x3 jacobian of the quaternion elements [w, x, y, z] wrt the
  * rodrigues parameters `w` (omega).
  *
  * As `|w| -> 0`, we take the limit and use a small angle approximation.
  */
-template <typename Scalar>
-struct QuaternionExpDerivative {
-  // Construct from rodrigues parameters.
-  QuaternionExpDerivative(const Vector<Scalar, 3>& w) {
-    constexpr Scalar kZeroTol = static_cast<Scalar>(1.0e-6);
-    const Scalar angle = w.norm();
-    // Fill out the quaternion.
-    q.w() = std::cos(angle / 2);
-    if (angle < kZeroTol) {
-      // Small angle approx: lim sin(x)/x -> 1
-      q.vec() = w / 2;
-      q.normalize();
-      // d(q.w) / d(w) = -sin(theta / 2) * (1 / 2) * (w^T / theta) = -[q.x, q.y, q.z]^T
-      q_D_w.template topRows<1>() = -q.vec().transpose() / 2;
-      q_D_w.template bottomRows<3>().setIdentity();
-      q_D_w.template bottomRows<3>().diagonal() *= static_cast<Scalar>(0.5);
-    } else {
-      const Scalar sinc_ha_2 = std::sin(angle / 2) / angle;
-      q.vec() = w * sinc_ha_2;
-      // Fill out derivtive part. First row is same in both cases (small/large).
-      const Vector<Scalar, 3> w_hat = w / angle;
-      q_D_w.template topRows<1>() = -q.vec().transpose() / 2;
-      q_D_w.template bottomRows<3>().setIdentity();
-      q_D_w.template bottomRows<3>().diagonal() *= sinc_ha_2;
-      q_D_w.template bottomRows<3>().noalias() +=
-          w_hat * (w_hat.transpose() * (q.w() / 2 - sinc_ha_2));
-    }
+template <typename Derived>
+Matrix<ScalarType<Derived>, 4, 3> QuaternionExpDerivative(const Eigen::MatrixBase<Derived>& w_xpr) {
+  using Scalar = ScalarType<Derived>;
+  constexpr Scalar kZeroTol = static_cast<Scalar>(1.0e-6);
+  const Vector<Scalar, 3> w = w_xpr.eval();
+  const Scalar angle = w.norm();
+  // Fill out the quaternion.
+  Eigen::Quaternion<Scalar> q;
+  Eigen::Matrix<Scalar, 4, 3> q_D_w;
+  q.w() = std::cos(angle / 2);
+  if (angle < kZeroTol) {
+    // Small angle approx: lim sin(x)/x -> 1
+    q.vec() = w / 2;
+    q.normalize();
+    // d(q.w) / d(w) = -sin(theta / 2) * (1 / 2) * (w^T / theta) = -[q.x, q.y, q.z]^T
+    q_D_w.template topRows<1>() = -q.vec().transpose() / 2;
+    q_D_w.template bottomRows<3>().setIdentity();
+    q_D_w.template bottomRows<3>().diagonal() *= static_cast<Scalar>(0.5);
+  } else {
+    const Scalar sinc_ha_2 = std::sin(angle / 2) / angle;
+    q.vec() = w * sinc_ha_2;
+    // Fill out derivtive part. First row is same in both cases (small/large).
+    const Vector<Scalar, 3> w_hat = w / angle;
+    q_D_w.template topRows<1>() = -q.vec().transpose() / 2;
+    q_D_w.template bottomRows<3>().setIdentity();
+    q_D_w.template bottomRows<3>().diagonal() *= sinc_ha_2;
+    q_D_w.template bottomRows<3>().noalias() +=
+        w_hat * (w_hat.transpose() * (q.w() / 2 - sinc_ha_2));
   }
-
-  // Rotation parametererized as a quaternion. Corresponds to `R = exp([w]_x)`.
-  Quaternion<Scalar> q;
-
-  // Derivative of the quaternion wrt the rodrigues parameters.
-  Matrix<Scalar, 4, 3> q_D_w;
-
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-};
+  return q_D_w;
+}
 
 /**
  * Convert a rotation type (either Matrix3 or Quaternion) to rodrigues vector.

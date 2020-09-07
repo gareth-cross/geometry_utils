@@ -38,18 +38,16 @@ class TestQuaternionExp : public ::testing::Test {
   void TestOmega(const Vector<Scalar, 3>& w, const Scalar matrix_tol,
                  const Scalar deriv_tol) const {
     // check that the derivative and non-derivative versions are the same
-    const Quaternion<Scalar> just_q = math::QuaternionExp(w);
-    const QuaternionExpDerivative<Scalar> q_and_deriv{w};
-    ASSERT_EIGEN_NEAR(just_q.matrix(), q_and_deriv.q.matrix(), tol::kPico);
+    const Quaternion<Scalar> q = math::QuaternionExp(w);
+    const Matrix<Scalar, 4, 3> q_D_w = QuaternionExpDerivative(w);
 
     // compare to the exponential map as a power series ~ 50 terms
-    ASSERT_EIGEN_NEAR(ExpMatrixSeries(Skew3(w), 50), q_and_deriv.q.matrix(), matrix_tol)
+    ASSERT_EIGEN_NEAR(ExpMatrixSeries(Skew3(w), 50), q.matrix(), matrix_tol)
         << "w = " << w.transpose();
 
     // compare to Eigen implementation for good measure
     const Eigen::AngleAxis<Scalar> aa(w.norm(), w.normalized());
-    ASSERT_EIGEN_NEAR(aa.toRotationMatrix(), q_and_deriv.q.matrix(), matrix_tol)
-        << "w = " << w.transpose();
+    ASSERT_EIGEN_NEAR(aa.toRotationMatrix(), q.matrix(), matrix_tol) << "w = " << w.transpose();
 
     // check derivative numerically
     const Matrix<Scalar, 4, 3> J_numerical =
@@ -58,7 +56,7 @@ class TestQuaternionExp : public ::testing::Test {
           const Quaternion<Scalar> q = math::QuaternionExp(w);
           return Vector<Scalar, 4>(q.w(), q.x(), q.y(), q.z());
         });
-    ASSERT_EIGEN_NEAR(J_numerical, q_and_deriv.q_D_w, deriv_tol) << "w = " << w.transpose();
+    ASSERT_EIGEN_NEAR(J_numerical, q_D_w, deriv_tol) << "w = " << w.transpose();
   }
 
   void Test() const {
