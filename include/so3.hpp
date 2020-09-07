@@ -7,6 +7,10 @@
  * the right-side jacobians, since that is why I use.
  *
  * Tests in so3_test.cc
+ *
+ * TODO(gareth): Make the names more consistent?
+ * TODO(gareth): Potentially add the jacobians for rotation composition on SO(3), although
+ * they are fairly simple.
  */
 namespace math {
 
