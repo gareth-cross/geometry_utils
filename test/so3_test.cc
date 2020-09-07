@@ -1,9 +1,16 @@
+#include "so3.hpp"
+
 #include <chrono>
 #include <iostream>
 
 #include "numerical_derivative.hpp"
-#include "so3.hpp"
 #include "test_utils.hpp"
+
+// Disable cast warning for the purpose of this test on MSVC.
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4305)
+#endif  // _MSC_VER
 
 // TODO(gareth): I think gtest has some tools for testing both double/float.
 // Should probably use those here instead of calling manaually.
@@ -375,3 +382,7 @@ TEST(SO3Test, SO3LogMulExpDerivativeNearZero) {
 }
 
 }  // namespace math
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif  // _MSC_VER

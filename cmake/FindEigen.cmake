@@ -6,6 +6,11 @@ list(APPEND EIGEN_CHECK_INCLUDE_DIRS
     /opt/local/include
     /usr/include)
 
+# Check if the user specified a location w/ -D, and look there as well.
+if (DEFINED EIGEN_DIRECTORY)
+  list(APPEND EIGEN_CHECK_INCLUDE_DIRS ${EIGEN_DIRECTORY})
+endif(DEFINED EIGEN_DIRECTORY)
+
 list(APPEND EIGEN_CHECK_PATH_SUFFIXES
      eigen3)
 
@@ -19,6 +24,7 @@ find_path(EIGEN_INCLUDE_DIR
 
 if(NOT EIGEN_INCLUDE_DIR OR NOT EXISTS ${EIGEN_INCLUDE_DIR})
   set(EIGEN_FOUND FALSE)
+  message(WARNING "Failed to locate Eigen.")
 else()
   set(EIGEN_FOUND TRUE)
   message(STATUS "Eigen found: ${EIGEN_INCLUDE_DIR}")

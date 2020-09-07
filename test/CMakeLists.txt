@@ -12,10 +12,6 @@ if(NOT googletest_POPULATED)
   add_subdirectory(${googletest_SOURCE_DIR} ${googletest_BINARY_DIR})
 endif()
 
-get_target_property(FOO_BAR ${PROJECT_NAME} INTERFACE_INCLUDE_DIRECTORIES)
-
-message(${FOO_BAR})
-
 # Build testing helper library.
 add_library(${PROJECT_NAME}_test_utils test_utils.cc)
 
@@ -39,13 +35,14 @@ foreach(test_file ${${PROJECT_NAME}_TEST_SOURCES})
 
   # turn on maximum warnings
   if(MSVC)
-    target_compile_options(${test_name} PRIVATE /W4 /WX)
+    # USE_MATH_DEFINES is required for M_PI
+    target_compile_options(${test_name} PRIVATE /W4 /WX /D_USE_MATH_DEFINES)
   else()
     target_compile_options(${test_name} PRIVATE -Wall -Wextra -pedantic -Werror)
   endif()
 
   if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-    message("Building ${test_name} with -DNDEBUG")
+    message("Building ${test_name} with -DNDEBUG (build type = ${CMAKE_BUILD_TYPE})")
     target_compile_definitions(${test_name} PUBLIC NDEBUG)
   endif()
 
