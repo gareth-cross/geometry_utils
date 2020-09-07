@@ -1,8 +1,8 @@
 ### geometry_utils
 
-Various C++ functions for dealing with rotations, and some unit tests.
+Various C++ functions for computing interesting derivatives/jacobians of SO(3).
 Wrote these while doing the derivations on paper for my own fun and understanding.
-They are unit tested, and may prove useful to others as a reference.
+They are unit tested thoroughly, and may prove useful to others as a reference.
 
 - Depends on Eigen for vector/matrix functionality.
 - Depends on gtest for running tests.

@@ -243,7 +243,7 @@ TEST_FIXTURE(TestSO3DerivativeInverse, TestGeneral)
 TEST_FIXTURE(TestSO3DerivativeInverse, TestNearZero)
 
 // Test derivative for rotating a point.
-TEST(SO3Test, RotateVectorTangentJacobian) {
+TEST(SO3Test, RotateVectorSO3TangentJacobian) {
   const std::vector<Eigen::Vector3d> points = {
       {0, 0, 0},
       {1.0, -5.0, 3.0},
@@ -253,7 +253,7 @@ TEST(SO3Test, RotateVectorTangentJacobian) {
     for (const auto& p : points) {
       // compute jacobian analytically
       const Matrix<double, 3, 3> J_analytical =
-          math::RotateVectorTangentJacobian(QuaternionExp(w), p);
+          math::RotateVectorSO3TangentJacobian(QuaternionExp(w), p);
       // compute numerically
       const Matrix<double, 3, 3> J_numerical = NumericalJacobian(
           Eigen::Vector3d::Zero(), [&](const Vector<double, 3>& dw) -> Vector<double, 3> {

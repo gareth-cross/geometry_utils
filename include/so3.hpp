@@ -243,8 +243,8 @@ Matrix<ScalarType<Derived>, 3, 3> SO3JacobianInverse(const Eigen::MatrixBase<Der
  * about dw = 0. Note this is only the derivative wrt the tangent-space of R.
  */
 template <typename Scalar>
-Matrix<Scalar, 3, 3> RotateVectorTangentJacobian(const Eigen::Quaternion<Scalar>& R,
-                                                 const Vector<Scalar, 3>& p) {
+Matrix<Scalar, 3, 3> RotateVectorSO3TangentJacobian(const Eigen::Quaternion<Scalar>& R,
+                                                    const Vector<Scalar, 3>& p) {
   return R * Skew3(-p);
 }
 
