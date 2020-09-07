@@ -150,25 +150,37 @@ Vector<typename RotationType::Scalar, 3> RotationLog(const RotationType& rot) {
 }
 
 /**
- * Compute the jacobian of SO(3), for a given rodrigues rotation vector.
+ * Compute the jacobian of SO(3), for a given so(3)/rodrigues rotation vector.
  *
  * This is the jacobian of:
  *
  *   log(exp(w)^-1 * exp(w + dw)) with respect to dw, linearized about dw = 0
  *
+ * It is also the inverse of the result of SO3JacobianInverse(), evaluated
+ * analytically. You can obtain this as follows:
  *
+ *    exp(v + dv) = exp(w) * exp(dw)
  *
- * This is refered to as the 'left jacobian' of SO(3) in:
+ * Then:
  *
- *  "Associating Uncertainty With Three-Dimensional Poses for Use in
- *   Estimation Problems", Tim Barfoot and Paul Furgale, 2014
+ *    v + dv = log[exp(w) * exp(dw)]
  *
- * This is also the matrix (sometimes denoted V) when evluating the exponential
- * map of SE(3):
+ * Such that:
  *
- *   exp([w, u]^) = [exp(w), J * u] where J * u is the translation of the pose on SE(3).
+ *    J = dv/dw = d(log[exp(w) * exp(dw)]) / dw
  *
- * High-level derivation is on slide 43 of my 3D transformations slides.
+ * Hence dw/dv = J^-1 (which is invertible). J^-1 converts the additive perturbation of `dv`
+ * to the rotational composition of `dw`(to first order).
+ *
+ * In addition, if you are executing the exponential map of SE(3):
+ *
+ *   exp([w_x, u]) = [exp(w_x) V(w) * u]
+ *
+ * The matrix V(w) is just SO3Jacobian(-w). In this context it is sometimes referred to
+ * as the "left jacobian of SO(3)". You can see this in more detail in:
+ *
+ * "Associating Uncertainty With Three-Dimensional Poses for Use in Estimation Problems"
+ *   Tim. Barfoot and Paul Furgale, 2014
  */
 template <typename Derived>
 Matrix<ScalarType<Derived>, 3, 3> SO3Jacobian(const Eigen::MatrixBase<Derived>& w) {
@@ -276,10 +288,13 @@ Matrix<Scalar, 9, 3> SO3ExpMatrixDerivative(const Vector<Scalar, 3>& w) {
  *
  *  v = log(exp([w]_x) * exp(d_w)) with respect to `d_w`, linearizing about d_w = 0.
  *
- * Note that we are not taking the derivative wrt the argument, but wrt to d_w.
+ * Note that we are not taking the derivative with respect to the argument, but with respect to
+ * d_w, and the derivative is always evaluated about zero.
+ *
+ * This is the analytical inverse of SO3Jacobian.
  */
 template <typename Derived>
-Matrix<ScalarType<Derived>, 3, 3> SO3LogRetractDerivative(const Eigen::MatrixBase<Derived>& w_xpr) {
+Matrix<ScalarType<Derived>, 3, 3> SO3JacobianInverse(const Eigen::MatrixBase<Derived>& w_xpr) {
   using Scalar = ScalarType<Derived>;
   const Matrix<Scalar, 3, 1> w = w_xpr.eval();
   const Scalar theta = w.norm();

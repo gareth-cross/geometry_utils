@@ -120,19 +120,40 @@ TEST(SO3Test, TestRotationLog) {
 class TestSO3Jacobian : public ::testing::Test {
  public:
   template <typename Scalar>
-  static void TestJacobian(const Vector<Scalar, 3>& w_a, const Scalar deriv_tol) {
+  static void TestJacobian(const Vector<Scalar, 3>& w_a, const Scalar deriv_tol,
+                           const Scalar invert_tol) {
     const Matrix<Scalar, 3, 3> J_analytical = math::SO3Jacobian(w_a);
     // This jacobian is only valid for small `w`, so evaluate about zero.
     const Matrix<Scalar, 3, 3> J_numerical =
         NumericalJacobian(Vector<Scalar, 3>::Zero(),
                           [&](const Vector<Scalar, 3>& w) { return QuaternionExp(w_a + w); });
     EXPECT_EIGEN_NEAR(J_numerical, J_analytical, deriv_tol);
+
+    // Test that this is the inverse of the its corresponding method.
+    EXPECT_EIGEN_NEAR(J_analytical, math::SO3JacobianInverse(w_a).inverse(), invert_tol);
+  }
+
+  template <typename Scalar>
+  static void TestMatchesSE3VMatrix(const Vector<Scalar, 3>& w,
+                                    const Vector<Scalar, 3>& u,  // translational delta
+                                    const Scalar tol) {
+    // evaluate the SE(3) exponential map numerically
+    const Matrix<Scalar, 4, 4> A = (Matrix<Scalar, 4, 4>() << Skew3(w), u, 0, 0, 0, 0).finished();
+    const Matrix<Scalar, 4, 4> exp_se3 = ExpMatrixSeries(A, 50);
+
+    // Check that this matches the matrix `V` from the SE(3) exponential map.
+    const Matrix<Scalar, 3, 1> t_on_group = exp_se3.template block<3, 1>(0, 3);
+    EXPECT_EIGEN_NEAR(t_on_group, math::SO3Jacobian(-w) * u, tol);
   }
 
   void TestGeneral() {
     for (const Eigen::Vector3d& w : kRandomRotationVectorsZero2Pi) {
-      TestJacobian<double>(w, tol::kNano);
-      TestJacobian<float>(w.cast<float>(), tol::kMilli / 10);
+      TestJacobian<double>(w, tol::kNano, tol::kNano);
+      TestJacobian<float>(w.cast<float>(), tol::kMilli / 10, 0.0005);
+
+      // check that this correctly executes the left jacobian of SO(3) as required to
+      // compute the exponential map of SE(3)
+      TestMatchesSE3VMatrix<double>(w, {-1.5, 0.4, 3.0}, tol::kNano);
     }
   }
 
@@ -186,7 +207,7 @@ class TestMatrixExpDerivative : public ::testing::Test {
 TEST_FIXTURE(TestMatrixExpDerivative, TestGeneral)
 TEST_FIXTURE(TestMatrixExpDerivative, TestNearZero)
 
-class TestSO3LogRetractDerivative : public ::testing::Test {
+class TestSO3DerivativeInverse : public ::testing::Test {
  public:
   template <typename Scalar>
   static Vector<Scalar, 9> VecExpMatrix(const Vector<Scalar, 3>& w) {
@@ -197,13 +218,27 @@ class TestSO3LogRetractDerivative : public ::testing::Test {
 
   template <typename Scalar>
   static void TestDerivative(const Vector<Scalar, 3>& w, const Scalar deriv_tol) {
-    const Matrix<Scalar, 3, 3> J_analytical = math::SO3LogRetractDerivative(w);
+    const Matrix<Scalar, 3, 3> J_analytical = math::SO3JacobianInverse(w);
     // This jacobian is only valid for small `dw`, so evaluate about zero.
     const Matrix<Scalar, 3, 3> J_numerical =
         NumericalJacobian(Vector<Scalar, 3>::Zero(), [&](const Vector<Scalar, 3>& dw) {
           return RotationLog(QuaternionExp(w) * QuaternionExp(dw));
         });
     ASSERT_EIGEN_NEAR(J_numerical, J_analytical, deriv_tol) << "w = " << w.transpose();
+
+    // the inverse of this should be the derivative of: log[exp(-w) * exp(w + dw)]
+    // because:
+    //    exp(v + dv) = exp(w) * exp(dw)
+    // so:
+    //    v + dv = log[exp(w) * exp(dw)]
+    // if we say:
+    //    dv ~= J * dw (to first order)
+    // then:
+    //    dw ~= J^-1 dv
+    const Matrix<Scalar, 3, 3> J_numerical_2 =
+        NumericalJacobian(Vector<Scalar, 3>::Zero(),
+                          [&](const Vector<Scalar, 3>& dw) { return QuaternionExp(w + dw); });
+    ASSERT_EIGEN_NEAR(J_numerical_2.inverse(), J_analytical, deriv_tol);
   }
 
   void TestGeneral() {
@@ -232,8 +267,8 @@ class TestSO3LogRetractDerivative : public ::testing::Test {
   }
 };
 
-TEST_FIXTURE(TestSO3LogRetractDerivative, TestGeneral)
-TEST_FIXTURE(TestSO3LogRetractDerivative, TestNearZero)
+TEST_FIXTURE(TestSO3DerivativeInverse, TestGeneral)
+TEST_FIXTURE(TestSO3DerivativeInverse, TestNearZero)
 
 // Have to be careful when testing this method numerically, since the output of log() can
 // jump around if the rotation R * exp(w) is large.
