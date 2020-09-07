@@ -127,10 +127,12 @@ class TestSO3Jacobian : public ::testing::Test {
     const Matrix<Scalar, 3, 3> J_numerical =
         NumericalJacobian(Vector<Scalar, 3>::Zero(),
                           [&](const Vector<Scalar, 3>& w) { return QuaternionExp(w_a + w); });
-    EXPECT_EIGEN_NEAR(J_numerical, J_analytical, deriv_tol);
+    EXPECT_EIGEN_NEAR(J_numerical, J_analytical, deriv_tol) << "w = " << w_a.transpose();
 
     // Test that this is the inverse of the its corresponding method.
-    EXPECT_EIGEN_NEAR(J_analytical, math::SO3JacobianInverse(w_a).inverse(), invert_tol);
+    if (invert_tol >= 0) {
+      EXPECT_EIGEN_NEAR(J_analytical, math::SO3JacobianInverse(w_a).inverse(), invert_tol);
+    }
   }
 
   template <typename Scalar>
@@ -157,7 +159,23 @@ class TestSO3Jacobian : public ::testing::Test {
     }
   }
 
-  void TestNearZero() {}
+  void TestNearZero() {
+    // test small angle cases
+    // clang-format off
+    const std::vector<Vector<double, 3>> samples = {
+      {0.0, 0.0, 0.0},
+      {-1.0e-7, 1.0e-7, 0.3e-7},
+      {0.1e-10, 0.0, -0.1e-9},
+      {-0.2e-8, 0.3e-7, 0.0},
+      {-0.2312e-9, 0.0, 0.1153e-7},
+      {1.0e-12, 2.0e-12, 0.0},
+    };
+    // clang-format on
+    for (const auto& w : samples) {
+      TestJacobian<double>(w, tol::kNano, -1);
+      TestJacobian<float>(w.cast<float>(), tol::kMicro, -1);
+    }
+  }
 };
 
 TEST_FIXTURE(TestSO3Jacobian, TestGeneral)

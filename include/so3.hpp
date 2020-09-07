@@ -188,8 +188,9 @@ Matrix<ScalarType<Derived>, 3, 3> SO3Jacobian(const Eigen::MatrixBase<Derived>& 
   const Scalar theta = w.norm();
   const Scalar theta2 = theta * theta;
   Matrix<Scalar, 3, 3> J = Matrix<Scalar, 3, 3>::Identity();
-  if (theta < static_cast<Scalar>(1.0e-9)) {
-    // Do nothing, identity is the approximation.
+  if (theta < static_cast<Scalar>(1.0e-6)) {
+    J.noalias() -= Skew3(w * static_cast<Scalar>(0.5));
+    J.noalias() += w * w.transpose() * (1 / static_cast<Scalar>(6));
   } else {
     const Scalar sinc_theta = std::sin(theta) / theta;
     J.diagonal() *= sinc_theta;
