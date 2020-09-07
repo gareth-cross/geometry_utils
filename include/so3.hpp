@@ -200,6 +200,37 @@ Matrix<ScalarType<Derived>, 3, 3> SO3Jacobian(const Eigen::MatrixBase<Derived>& 
   return J;
 }
 
+/*
+ * Computes the 3x3 Jacobian of:
+ *
+ *  v = log(exp([w]_x) * exp(d_w)) with respect to `d_w`, linearizing about d_w = 0.
+ *
+ * Note that we are not taking the derivative with respect to the argument, but with respect to
+ * d_w, and the derivative is always evaluated about zero.
+ *
+ * This is the analytical inverse of SO3Jacobian.
+ */
+template <typename Derived>
+Matrix<ScalarType<Derived>, 3, 3> SO3JacobianInverse(const Eigen::MatrixBase<Derived>& w_xpr) {
+  using Scalar = ScalarType<Derived>;
+  const Matrix<Scalar, 3, 1> w = w_xpr.eval();
+  const Scalar theta = w.norm();
+  Eigen::Matrix<Scalar, 3, 3> J = Eigen::Matrix<Scalar, 3, 3>::Zero();
+  if (theta < static_cast<Scalar>(1.0e-6)) {
+    // small angle approximation
+    J.diagonal().setConstant(1);
+    J.noalias() += Skew3(w * 0.5);
+    J.noalias() += w * w.transpose() * static_cast<Scalar>(1) / static_cast<Scalar>(12);
+  } else {
+    const Scalar cos = std::cos(theta);
+    const Scalar sin = std::sin(theta);
+    J.diagonal().setConstant(theta * (cos + 1) / (2 * sin));
+    J.noalias() += Skew3(w * 0.5);
+    J.noalias() += w * w.transpose() * -(1 + cos - 2 * sin / theta) / (2 * theta * sin);
+  }
+  return J;
+}
+
 /**
  * Derivative of the exponential map: so(3) -> SO(3).
  *
@@ -282,37 +313,6 @@ Matrix<Scalar, 9, 3> SO3ExpMatrixDerivative(const Vector<Scalar, 3>& w) {
     result.noalias() += vec_w_sqr * (w.transpose() * vec_skew_w_sqr_coeff);
   }
   return result;
-}
-
-/*
- * Computes the 3x3 Jacobian of:
- *
- *  v = log(exp([w]_x) * exp(d_w)) with respect to `d_w`, linearizing about d_w = 0.
- *
- * Note that we are not taking the derivative with respect to the argument, but with respect to
- * d_w, and the derivative is always evaluated about zero.
- *
- * This is the analytical inverse of SO3Jacobian.
- */
-template <typename Derived>
-Matrix<ScalarType<Derived>, 3, 3> SO3JacobianInverse(const Eigen::MatrixBase<Derived>& w_xpr) {
-  using Scalar = ScalarType<Derived>;
-  const Matrix<Scalar, 3, 1> w = w_xpr.eval();
-  const Scalar theta = w.norm();
-  Eigen::Matrix<Scalar, 3, 3> J = Eigen::Matrix<Scalar, 3, 3>::Zero();
-  if (theta < static_cast<Scalar>(1.0e-6)) {
-    // small angle approximation
-    J.diagonal().setConstant(1);
-    J.noalias() += Skew3(w * 0.5);
-    J.noalias() += w * w.transpose() * static_cast<Scalar>(1) / static_cast<Scalar>(12);
-  } else {
-    const Scalar cos = std::cos(theta);
-    const Scalar sin = std::sin(theta);
-    J.diagonal().setConstant(theta * (cos + 1) / (2 * sin));
-    J.noalias() += Skew3(w * 0.5);
-    J.noalias() += w * w.transpose() * -(1 + cos - 2 * sin / theta) / (2 * theta * sin);
-  }
-  return J;
 }
 
 /**
