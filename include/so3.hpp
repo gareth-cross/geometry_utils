@@ -210,7 +210,21 @@ Matrix<ScalarType<Derived>, 3, 3> SO3Jacobian(const Eigen::MatrixBase<Derived>& 
 /*
  * Computes the 3x3 Jacobian of:
  *
- *  v = log(exp([w]_x) * exp(d_w)) with respect to `d_w`, linearizing about d_w = 0.
+ *   v = log(exp([w]_x) * exp(dw)) with respect to `dw`, linearizing about dw = 0.
+ *
+ * You can get this expression fairly easily by evaluating the expression above via the
+ * chain rule:
+ *
+ *   dlog(x)/dx|x=exp(w) * d(A*B)/dB|A=exp(w) * dexp(dw)/ddw|dw=0
+ *
+ * Where dlog(x)/dx is the 3x9 derivative of rodrigues params wrt matrix elements. You can
+ * find it defined in:
+ *
+ *  "A tutorial on SE(3) transformation parameterization and on-manifold optimization"
+ *    JL Blano, 2010 (Chapter 10)
+ *
+ * d(A*B)/dB is the Kronecker product: I3 \kron A = I3 \kron exp(w)
+ * dexp(dw)/ddw evaluated at zero is just the generators of so3: [[-i]_x; [-j]_x; [-k]_x]
  *
  * Note that we are not taking the derivative with respect to the argument, but with respect to
  * d_w, and the derivative is always evaluated about zero.
@@ -341,6 +355,8 @@ Matrix<Scalar, 9, 3> SO3ExpMatrixJacobian(const Vector<Scalar, 3>& w) {
  * Note that this is distinct from SO3JacobianInverse, because in this context
  * we are taking the derivative wrt to the argument `w`, and this need not be
  * evaluated about zero.
+ *
+ * You can obtain this derivative by applying the chain rule to the expression for `v`.
  *
  * TODO(gareth): The name of this method is a bit muddled, but I'm not
  * sure what else to call it.
