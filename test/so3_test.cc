@@ -1,3 +1,4 @@
+// Copyright 2020 Gareth Cross
 #include "so3.hpp"
 
 #include <chrono>

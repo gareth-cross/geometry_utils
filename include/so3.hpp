@@ -1,3 +1,4 @@
+// Copyright 2020 Gareth Cross
 #pragma once
 #include "internal_utils.hpp"
 #include "matrix_types.hpp"

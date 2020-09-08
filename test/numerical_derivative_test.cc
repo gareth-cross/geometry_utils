@@ -1,3 +1,4 @@
+// Copyright 2020 Gareth Cross
 #include "numerical_derivative.hpp"
 
 #include <cmath>

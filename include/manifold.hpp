@@ -1,3 +1,4 @@
+// Copyright 2020 Gareth Cross
 #pragma once
 #include <type_traits>
 #include "matrix_types.hpp"

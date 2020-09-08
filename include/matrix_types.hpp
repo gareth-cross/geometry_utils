@@ -1,3 +1,4 @@
+// Copyright 2020 Gareth Cross
 #pragma once
 #include <Eigen/Core>
 #include <Eigen/Geometry>

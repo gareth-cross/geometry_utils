@@ -1,3 +1,4 @@
+// Copyright 2020 Gareth Cross
 #include "test_utils.hpp"
 
 namespace math {
