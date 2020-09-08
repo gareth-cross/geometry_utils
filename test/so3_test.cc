@@ -250,6 +250,36 @@ class TestSO3DerivativeInverse : public ::testing::Test {
 TEST_FIXTURE(TestSO3DerivativeInverse, TestGeneral)
 TEST_FIXTURE(TestSO3DerivativeInverse, TestNearZero)
 
+class TestSO3FromEulerAngles : public ::testing::Test {
+ public:
+  template <typename Scalar>
+  static void TestDerivative(const Vector<Scalar, 3>& xyz, const Scalar deriv_tol) {
+    const auto q_and_deriv = math::SO3FromEulerAngles(xyz);
+
+    // check that this matches Eigen
+    const Matrix<Scalar, 3, 3> R_eigen =
+        Eigen::AngleAxis<Scalar>(xyz[2], Vector<Scalar, 3>::UnitZ()).matrix() *
+        Eigen::AngleAxis<Scalar>(xyz[1], Vector<Scalar, 3>::UnitY()).matrix() *
+        Eigen::AngleAxis<Scalar>(xyz[0], Vector<Scalar, 3>::UnitX()).matrix();
+    ASSERT_EIGEN_NEAR(R_eigen, q_and_deriv.q.matrix(), deriv_tol);
+
+    // Check derivative of tangent-space wrt the euler angles.
+    const Matrix<Scalar, 3, 3> J_numerical = NumericalJacobian(
+        xyz, [](const Vector<Scalar, 3>& xyz) { return math::SO3FromEulerAngles(xyz).q; });
+    ASSERT_EIGEN_NEAR(J_numerical, q_and_deriv.rotation_D_angles, deriv_tol)
+        << "xyz = " << xyz.transpose();
+  }
+
+  void TestGeneral() {
+    for (const Eigen::Vector3d& w : kRandomRotationVectorsZero2Pi) {
+      TestDerivative<double>(w, tol::kNano);
+      TestDerivative<float>(w.cast<float>(), 1.0e-4);
+    }
+  }
+};
+
+TEST_FIXTURE(TestSO3FromEulerAngles, TestGeneral)
+
 // Test derivative for rotating a point.
 TEST(SO3Test, RotateVectorSO3TangentJacobian) {
   const std::vector<Eigen::Vector3d> points = {

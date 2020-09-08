@@ -263,6 +263,86 @@ Matrix<Scalar, 3, 3> RotateVectorSO3TangentJacobian(const Eigen::Quaternion<Scal
 }
 
 /**
+ * Functional struct for converting euler angles to SO(3), w/ derivatives.
+ *
+ * The rotation itself is stored in a quaternion, but the derivative is the tangent space
+ * of SO(3) on the right wrt the three euler angles.
+ *
+ * Thus we are computing the rotation:
+ *
+ *    R_out = R_z * R_y * R_z (NOTE: Z in the left frame, X in the right)
+ *
+ * And the Jacobian is compute from:
+ *
+ *    R_out * exp(dw) = R_z(z + dz) * R_y(y + dy) * R_x(x + dx)
+ *
+ *    J = dw/d[dx,dy,dz]) (NOTE: Jacobian ordered: x, y, z)
+ *
+ * We use a struct in order to return both the rotation and the derivative.
+ */
+template <typename Scalar>
+struct SO3FromEulerAngles_ {
+  // Helper method to construct quaternion.
+  template <typename BasisVectorType>
+  static Quaternion<Scalar> QuatFromHalfAnglesAndUnitVector(const Scalar cos_half,
+                                                            const Scalar sin_half,
+                                                            const BasisVectorType& basis_vector) {
+    // We don't need to deal w/ small angle here as the basis vector is normalized.
+    Quaternion<Scalar> q;
+    q.w() = cos_half;
+    q.vec() = basis_vector * sin_half;
+    return q;
+  }
+
+  // Construct from Vector, ordered [x, y, z].
+  SO3FromEulerAngles_(const Vector<Scalar, 3>& xyz)
+      : rotation_D_angles(Matrix<Scalar, 3, 3>::Zero()) {
+    // Compute sin and cosines of the half angles
+    const Scalar c_hx = std::cos(xyz.x() / 2);
+    const Scalar s_hx = std::sin(xyz.x() / 2);
+    const Scalar c_hy = std::cos(xyz.y() / 2);
+    const Scalar s_hy = std::sin(xyz.y() / 2);
+    const Scalar c_hz = std::cos(xyz.z() / 2);
+    const Scalar s_hz = std::sin(xyz.z() / 2);
+    // Fill out the quaternion itself.
+    q = QuatFromHalfAnglesAndUnitVector(c_hz, s_hz, Vector<Scalar, 3>::UnitZ()) *
+        QuatFromHalfAnglesAndUnitVector(c_hy, s_hy, Vector<Scalar, 3>::UnitY()) *
+        QuatFromHalfAnglesAndUnitVector(c_hx, s_hx, Vector<Scalar, 3>::UnitX());
+    // Cosines/sines we need for the derivatives.
+    const Scalar cx = 2 * c_hx * c_hx - 1;
+    const Scalar sx = 2 * c_hx * s_hx;
+    const Scalar cy = 2 * c_hy * c_hy - 1;
+    const Scalar sy = 2 * c_hy * s_hy;
+    // dw/dx is simple, as x is in the right-side frame already, it is just [0, 0, 1]
+    rotation_D_angles(0, 0) = 1;
+    // dw/dy is a little more complex, we must multiply by the adjoint of R_x.
+    // dw/dy = R_x^T * j_hat
+    rotation_D_angles(1, 1) = cx;
+    rotation_D_angles(2, 1) = -sx;
+    // dw/dz is the hardest, since R_z is the left-most rotation.
+    // We must account for the X and Y rotations:
+    // dw/dz = R_x^T * R_y^T * k_hat
+    rotation_D_angles(0, 2) = -sy;
+    rotation_D_angles(1, 2) = sx * cy;
+    rotation_D_angles(2, 2) = cx * cy;
+  }
+
+  // Rotation composed in order Rz * Ry * Rx
+  Quaternion<Scalar> q;
+
+  // Derivative of the right tangent-space of SO(3) wrt the input euler angles.
+  Matrix<Scalar, 3, 3> rotation_D_angles;
+
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+};
+
+// Helper for calling the method above that deduces the template argument.
+template <typename Derived>
+SO3FromEulerAngles_<ScalarType<Derived>> SO3FromEulerAngles(const Eigen::MatrixBase<Derived>& xyz) {
+  return SO3FromEulerAngles_<ScalarType<Derived>>(xyz);
+}
+
+/**
  * Derivative of the exponential map: so(3) -> SO(3).
  *
  * Returns the 9x3 jacobian of the elements of the 3x3 rotation matrix `R = exp([w]_x)` with
