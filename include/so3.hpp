@@ -333,7 +333,7 @@ struct SO3FromEulerAngles_ {
   // Derivative of the right tangent-space of SO(3) wrt the input euler angles.
   Matrix<Scalar, 3, 3> rotation_D_angles;
 
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 };
 
 // Helper for calling the method above that deduces the template argument.
