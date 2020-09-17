@@ -41,7 +41,7 @@ foreach(test_file ${${PROJECT_NAME}_TEST_SOURCES})
     target_compile_options(${test_name} PRIVATE -Wall -Wextra -pedantic -Werror)
   endif()
 
-  if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+  if (NOT ${CMAKE_BUILD_TYPE} STREQUAL "Debug")
     message("Building ${test_name} with -DNDEBUG (build type = ${CMAKE_BUILD_TYPE})")
     target_compile_definitions(${test_name} PUBLIC NDEBUG)
   endif()
