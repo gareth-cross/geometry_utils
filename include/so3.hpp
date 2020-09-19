@@ -358,6 +358,22 @@ SO3FromEulerAngles_<ScalarType<Derived>> SO3FromEulerAngles(const Eigen::MatrixB
 }
 
 /**
+ * Convert from SO(3) (represented as quaternion) to euler angles.
+ *
+ * Assumes composition order is ZYX.
+ *
+ * Note that we don't check for the singularity, which occurs at y = +/- pi/2
+ */
+template <typename Scalar>
+Matrix<Scalar, 3, 1> EulerAnglesFromSO3(const Quaternion<Scalar>& q) {
+  // TODO(gareth): I think it may be more numerically stable to factorize this by
+  // computing Rz, and then multiplying on the left by Rz^T, then similarly for Rx on the right.
+  return {std::atan2(2 * (q.y() * q.z() + q.x() * q.w()), 1 - 2 * (q.x() * q.x() + q.y() * q.y())),
+          std::asin(std::max(std::min(1., -2 * (q.x() * q.z() - q.y() * q.w())), -1.)),
+          std::atan2(2 * (q.x() * q.y() + q.z() * q.w()), 1 - 2 * (q.y() * q.y() + q.z() * q.z()))};
+}
+
+/**
  * Derivative of the exponential map: so(3) -> SO(3).
  *
  * Returns the 9x3 jacobian of the elements of the 3x3 rotation matrix `R = exp([w]_x)` with

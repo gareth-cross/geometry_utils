@@ -291,6 +291,20 @@ class TestSO3FromEulerAngles : public ::testing::Test {
 
 TEST_FIXTURE(TestSO3FromEulerAngles, TestGeneral)
 
+TEST(SO3Test, TestEulerAnglesFromSO3) {
+  // Test some conversions to and from euler angles.
+  const std::vector<Eigen::Vector3d> angles = {
+      {-0.5, 1.2, 0.3}, {0.0, 0.0, 0.0},  {-0.3, 0.6, -0.9},   {1.4, 0.0, -1.3},
+      {0.0, 0.0, 1.2},  {0.0, -0.9, 0.0}, {0.0, 0.0, 0.74123},
+  };
+  // test that we can go both directions
+  for (const auto& xyz : angles) {
+    const math::SO3FromEulerAngles_<double> rot =
+        math::SO3FromEulerAngles(xyz, CompositionOrder::ZYX);
+    ASSERT_EIGEN_NEAR(xyz, math::EulerAnglesFromSO3(rot.q), tol::kNano);
+  }
+}
+
 // Test derivative for rotating a point.
 TEST(SO3Test, RotateVectorSO3TangentJacobian) {
   const std::vector<Eigen::Vector3d> points = {
