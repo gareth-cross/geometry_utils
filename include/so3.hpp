@@ -262,6 +262,14 @@ Matrix<Scalar, 3, 3> RotateVectorSO3TangentJacobian(const Eigen::Quaternion<Scal
   return R * Skew3(-p);
 }
 
+// Composition order of euler angles.
+enum class CompositionOrder {
+  // Rx * Ry * Rx
+  ZYX = 0,
+  // Rx * Ry * Rz
+  XYZ,
+};
+
 /**
  * Functional struct for converting euler angles to SO(3), w/ derivatives.
  *
@@ -282,20 +290,10 @@ Matrix<Scalar, 3, 3> RotateVectorSO3TangentJacobian(const Eigen::Quaternion<Scal
  */
 template <typename Scalar>
 struct SO3FromEulerAngles_ {
-  // Helper method to construct quaternion.
-  template <typename BasisVectorType>
-  static Quaternion<Scalar> QuatFromHalfAnglesAndUnitVector(const Scalar cos_half,
-                                                            const Scalar sin_half,
-                                                            const BasisVectorType& basis_vector) {
-    // We don't need to deal w/ small angle here as the basis vector is normalized.
-    Quaternion<Scalar> q;
-    q.w() = cos_half;
-    q.vec() = basis_vector * sin_half;
-    return q;
-  }
-
   // Construct from Vector, ordered [x, y, z].
-  SO3FromEulerAngles_(const Vector<Scalar, 3>& xyz)
+  // Note: Even if the order changes, the storage order is kept the same.
+  // Derivatives are always returned wrt the storage order: [x, y, z]
+  SO3FromEulerAngles_(const Vector<Scalar, 3>& xyz, const CompositionOrder order)
       : rotation_D_angles(Matrix<Scalar, 3, 3>::Zero()) {
     // Compute sin and cosines of the half angles
     const Scalar c_hx = std::cos(xyz.x() / 2);
@@ -304,30 +302,46 @@ struct SO3FromEulerAngles_ {
     const Scalar s_hy = std::sin(xyz.y() / 2);
     const Scalar c_hz = std::cos(xyz.z() / 2);
     const Scalar s_hz = std::sin(xyz.z() / 2);
-    // Fill out the quaternion itself.
-    q = QuatFromHalfAnglesAndUnitVector(c_hz, s_hz, Vector<Scalar, 3>::UnitZ()) *
-        QuatFromHalfAnglesAndUnitVector(c_hy, s_hy, Vector<Scalar, 3>::UnitY()) *
-        QuatFromHalfAnglesAndUnitVector(c_hx, s_hx, Vector<Scalar, 3>::UnitX());
     // Cosines/sines we need for the derivatives.
     const Scalar cx = 2 * c_hx * c_hx - 1;
     const Scalar sx = 2 * c_hx * s_hx;
     const Scalar cy = 2 * c_hy * c_hy - 1;
     const Scalar sy = 2 * c_hy * s_hy;
-    // dw/dx is simple, as x is in the right-side frame already, it is just [0, 0, 1]
-    rotation_D_angles(0, 0) = 1;
-    // dw/dy is a little more complex, we must multiply by the adjoint of R_x.
-    // dw/dy = R_x^T * j_hat
-    rotation_D_angles(1, 1) = cx;
-    rotation_D_angles(2, 1) = -sx;
-    // dw/dz is the hardest, since R_z is the left-most rotation.
-    // We must account for the X and Y rotations:
-    // dw/dz = R_x^T * R_y^T * k_hat
-    rotation_D_angles(0, 2) = -sy;
-    rotation_D_angles(1, 2) = sx * cy;
-    rotation_D_angles(2, 2) = cx * cy;
+    const Scalar cz = 2 * c_hz * c_hz - 1;
+    const Scalar sz = 2 * c_hz * s_hz;
+    if (order == CompositionOrder::ZYX) {
+      // Fill out the quaternion itself.
+      q.w() = c_hx * c_hy * c_hz + s_hx * s_hy * s_hz;
+      q.x() = -c_hx * s_hy * s_hz + c_hy * c_hz * s_hx;
+      q.y() = c_hx * c_hz * s_hy + c_hy * s_hx * s_hz;
+      q.z() = c_hx * c_hy * s_hz - c_hz * s_hx * s_hy;
+      // dw/dx is simple, as x is in the right-side frame already, it is just [0, 0, 1]
+      rotation_D_angles(0, 0) = 1;
+      // dw/dy is a little more complex, we must multiply by the adjoint of R_x.
+      // dw/dy = R_x^T * j_hat
+      rotation_D_angles(1, 1) = cx;
+      rotation_D_angles(2, 1) = -sx;
+      // dw/dz is the hardest, since R_z is the left-most rotation.
+      // We must account for the X and Y rotations:
+      // dw/dz = R_x^T * R_y^T * k_hat
+      rotation_D_angles(0, 2) = -sy;
+      rotation_D_angles(1, 2) = sx * cy;
+      rotation_D_angles(2, 2) = cx * cy;
+    } else if (order == CompositionOrder::XYZ) {
+      q.w() = c_hx * c_hy * c_hz - s_hx * s_hy * s_hz;
+      q.x() = c_hx * s_hy * s_hz + c_hy * c_hz * s_hx;
+      q.y() = c_hx * c_hz * s_hy - c_hy * s_hx * s_hz;
+      q.z() = c_hx * c_hy * s_hz + c_hz * s_hx * s_hy;
+      rotation_D_angles(0, 0) = cy * cz;
+      rotation_D_angles(1, 0) = -sz * cy;
+      rotation_D_angles(2, 0) = sy;
+      rotation_D_angles(0, 1) = sz;
+      rotation_D_angles(1, 1) = cz;
+      rotation_D_angles(2, 2) = 1;
+    }
   }
 
-  // Rotation composed in order Rz * Ry * Rx
+  // Rotation composed according to the specified order.
   Quaternion<Scalar> q;
 
   // Derivative of the right tangent-space of SO(3) wrt the input euler angles.
@@ -338,8 +352,9 @@ struct SO3FromEulerAngles_ {
 
 // Helper for calling the method above that deduces the template argument.
 template <typename Derived>
-SO3FromEulerAngles_<ScalarType<Derived>> SO3FromEulerAngles(const Eigen::MatrixBase<Derived>& xyz) {
-  return SO3FromEulerAngles_<ScalarType<Derived>>(xyz);
+SO3FromEulerAngles_<ScalarType<Derived>> SO3FromEulerAngles(const Eigen::MatrixBase<Derived>& xyz,
+                                                            const CompositionOrder order) {
+  return SO3FromEulerAngles_<ScalarType<Derived>>(xyz, order);
 }
 
 /**
