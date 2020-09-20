@@ -1,6 +1,7 @@
 // Copyright 2020 Gareth Cross
 #pragma once
 #include <type_traits>
+
 #include "matrix_types.hpp"
 #include "so3.hpp"
 
@@ -26,6 +27,12 @@ struct Manifold<T, typename std::enable_if<IsQuaternion<T>::value>::type> {
   static T To(const T& x, const Eigen::MatrixBase<Derived>& v) {
     return x * QuaternionExp(v);
   }
+
+  // Get runtime dimension of the tangent space of an object.
+  static constexpr int TangentDimension(const T& x) {
+    (void)x;  //  silence un-referenced parameter in MSVC
+    return Dim;
+  }
 };
 
 // Traits on vector types.
@@ -44,6 +51,9 @@ struct Manifold<T, typename std::enable_if<IsVector<T>::value>::type> {
   static VectorType To(const T& x, const Eigen::MatrixBase<Derived>& v) {
     return x + v;
   }
+
+  // Runtime dimension of vector.
+  static int TangentDimension(const T& x) { return static_cast<int>(x.rows()); }
 };
 
 }  // namespace math

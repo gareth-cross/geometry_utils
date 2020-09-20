@@ -139,4 +139,39 @@ TEST(NumericalDerivativeTest, TestLeftRightAngularVelocity) {
   EXPECT_EIGEN_NEAR(J_time_expected, J_time, tol::kPico);
 }
 
+// Test numerical jacobian with a dynamic sized vector.
+TEST(NumericalDerivativeTest, TestDynamicSize) {
+  const Vector<double> x = (Vector<double, 6>() << -0.5, 0.2, 0.8, 1.2, 0.5, -0.2).finished();
+
+  // dynamic input, static output
+  {
+    const Matrix<double, 3, Eigen::Dynamic> J_numerical =
+        NumericalJacobian(x, [](const Vector<double>& x) -> Vector<double, 3> {
+          Matrix<double, 3, 3> A;
+          A.setZero();
+          A.diagonal() = x.head<3>();
+          return A * x.tail<3>();
+        });
+    const Matrix<double, 3, 3> J_1 = x.tail(3).asDiagonal();
+    const Matrix<double, 3, 3> J_2 = x.head(3).asDiagonal();
+    EXPECT_EIGEN_NEAR(J_1, J_numerical.block(0, 0, 3, 3), tol::kPico);
+    EXPECT_EIGEN_NEAR(J_2, J_numerical.block(0, 3, 3, 3), tol::kPico);
+  }
+
+  // both input and output are dynamic
+  {
+    const Matrix<double, Eigen::Dynamic, Eigen::Dynamic> J_numerical =
+        NumericalJacobian(x, [](const Vector<double>& x) -> Vector<double> {
+          Matrix<double, 3, 3> A;
+          A.setZero();
+          A.diagonal() = x.head<3>();
+          return A * x.tail<3>() * -0.25;
+        });
+    const Matrix<double, 3, 3> J_1 = x.tail(3).asDiagonal() * -0.25;
+    const Matrix<double, 3, 3> J_2 = x.head(3).asDiagonal() * -0.25;
+    EXPECT_EIGEN_NEAR(J_1, J_numerical.block(0, 0, 3, 3), tol::kPico);
+    EXPECT_EIGEN_NEAR(J_2, J_numerical.block(0, 3, 3, 3), tol::kPico);
+  }
+}
+
 }  // namespace math

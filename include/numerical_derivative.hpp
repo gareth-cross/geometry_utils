@@ -2,8 +2,15 @@
 #pragma once
 #include <functional>
 #include <type_traits>
+
 #include "manifold.hpp"
 #include "matrix_types.hpp"
+
+// Turn off warning about constant if statements.
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4127)
+#endif  // _MSC_VER
 
 namespace math {
 
@@ -36,21 +43,31 @@ template <typename XExpr, typename Function>
 auto NumericalJacobian(const XExpr& x, Function func, const double h = 0.01)
     -> Matrix<typename Manifold<XExpr>::Scalar, Manifold<decltype(func(x))>::Dim,
               Manifold<XExpr>::Dim> {
-  using YExpr = decltype(func(x));
-  static constexpr int DimX = Manifold<XExpr>::Dim;
-  static constexpr int DimY = Manifold<YExpr>::Dim;
+  using YExpr = std::decay<decltype(func(x))>::type;
+  constexpr int DimX = Manifold<XExpr>::Dim;
+  constexpr int DimY = Manifold<YExpr>::Dim;
   using Scalar = typename Manifold<XExpr>::Scalar;
-  static_assert(DimY != Eigen::Dynamic && DimX != Eigen::Dynamic, "Dynamic sizes unsupported");
 
   // Compute the output expression at the linearization point.
   const YExpr y_0 = func(x);
 
+  // Possibly allocate for the result, since dimensions may be dynamic.
   Matrix<Scalar, DimY, DimX> J;
-  for (int j = 0; j < DimX; ++j) {
+  if (DimX == Eigen::Dynamic || DimY == Eigen::Dynamic) {
+    J.resize(Manifold<YExpr>::TangentDimension(y_0), Manifold<XExpr>::TangentDimension(x));
+  }
+
+  // Pre-allocate `delta` once and re-use it.
+  Vector<Scalar, DimX> delta;
+  if (DimX == Eigen::Dynamic) {
+    delta.resize(Manifold<XExpr>::TangentDimension(x));
+  }
+
+  for (int j = 0; j < Manifold<XExpr>::TangentDimension(x); ++j) {
     // Take derivative wrt the j'th dimension of X
     const auto wrapped = [&](const XExpr& x, Scalar dx) {
       // apply perturbation in the tangent space
-      Vector<Scalar, DimX> delta = Vector<Scalar, DimX>::Zero();
+      delta.setZero();
       delta[j] = dx;
       // Perform the operation: x [+] f(dx), where [+] is the manifold composition.
       const auto x_plus_dx = Manifold<XExpr>::To(x, delta);
@@ -65,3 +82,7 @@ auto NumericalJacobian(const XExpr& x, Function func, const double h = 0.01)
 }
 
 }  // namespace math
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif  // _MSC_VER
