@@ -129,12 +129,12 @@ TEST(NumericalDerivativeTest, TestLeftRightAngularVelocity) {
   const Vector3d w_a{-0.1, 0.2, -0.3};
   const Vector3d w_b{0.02, 0.8, 0.2};
   // add them on the left and right and compute a_R_b
-  const auto integrate_ab = [&](const Matrix<double, 1, 1>& t) {
+  const auto integrate_ab = [&](const double& t) {
     const Quaternion<double> ref_R_a_int = ref_R_a * QuaternionExp(w_a * t);
     const Quaternion<double> ref_R_b_int = ref_R_b * QuaternionExp(w_b * t);
     return ref_R_a_int.conjugate() * ref_R_b_int;
   };
-  const Vector3d J_time = NumericalJacobian(Matrix<double, 1, 1>(0), integrate_ab);
+  const Vector3d J_time = NumericalJacobian(0.0, integrate_ab);
   const Vector3d J_time_expected = -(ref_R_b.conjugate() * ref_R_a * w_a) + w_b;
   EXPECT_EIGEN_NEAR(J_time_expected, J_time, tol::kPico);
 }
@@ -172,6 +172,14 @@ TEST(NumericalDerivativeTest, TestDynamicSize) {
     EXPECT_EIGEN_NEAR(J_1, J_numerical.block(0, 0, 3, 3), tol::kPico);
     EXPECT_EIGEN_NEAR(J_2, J_numerical.block(0, 3, 3, 3), tol::kPico);
   }
+}
+
+// Test a 1x1 jacobian.
+TEST(NumericalDerivativeTest, TestScalarJacobian) {
+  const double x = 1.123;
+  const Matrix<double, 1, 1> J_numerical =
+      NumericalJacobian(x, [](const double x) { return std::sin(x) - x; });
+  ASSERT_NEAR(std::cos(x) - 1, J_numerical[0], tol::kPico);
 }
 
 }  // namespace math
