@@ -7,10 +7,6 @@
 
 namespace math {
 
-// True if the argument is a 'scalar' type.
-template <typename T>
-struct IsScalar : public std::is_floating_point<T> {};
-
 // Unspecified manifold traits.
 template <typename T, typename = void>
 struct Manifold {};
@@ -62,7 +58,7 @@ struct Manifold<T, typename std::enable_if<IsVector<T>::value>::type> {
 
 // Traits on floats/doubles.
 template <typename T>
-struct Manifold<T, typename std::enable_if<IsScalar<T>::value>::type> {
+struct Manifold<T, typename std::enable_if<std::is_floating_point<T>::value>::type> {
   static constexpr int Dim = 1;
   using Scalar = T;
   using VectorType = Vector<Scalar, 1>;
