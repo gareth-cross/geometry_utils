@@ -43,7 +43,7 @@ template <typename XExpr, typename Function>
 auto NumericalJacobian(const XExpr& x, Function func, const double h = 0.01)
     -> Matrix<typename Manifold<XExpr>::Scalar, Manifold<decltype(func(x))>::Dim,
               Manifold<XExpr>::Dim> {
-  using YExpr = std::decay<decltype(func(x))>::type;
+  using YExpr = typename std::decay<decltype(func(x))>::type;
   constexpr int DimX = Manifold<XExpr>::Dim;
   constexpr int DimY = Manifold<YExpr>::Dim;
   using Scalar = typename Manifold<XExpr>::Scalar;
