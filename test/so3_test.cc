@@ -1,10 +1,10 @@
 // Copyright 2020 Gareth Cross
-#include "so3.hpp"
+#include "geometry_utils/so3.hpp"
 
 #include <chrono>
 #include <iostream>
 
-#include "numerical_derivative.hpp"
+#include "geometry_utils/numerical_derivative.hpp"
 #include "test_utils.hpp"
 
 // Disable cast warning for the purpose of this test on MSVC.

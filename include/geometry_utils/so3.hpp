@@ -1,7 +1,7 @@
 // Copyright 2020 Gareth Cross
 #pragma once
-#include "internal_utils.hpp"
-#include "matrix_types.hpp"
+#include "geometry_utils/internal_utils.hpp"
+#include "geometry_utils/matrix_types.hpp"
 
 /*
  * Some useful functions for SO(3) and its derivatives. I am only bothering to define

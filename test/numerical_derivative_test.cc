@@ -1,9 +1,9 @@
 // Copyright 2020 Gareth Cross
-#include "numerical_derivative.hpp"
+#include "geometry_utils/numerical_derivative.hpp"
 
 #include <cmath>
 
-#include "so3.hpp"
+#include "geometry_utils/so3.hpp"
 #include "test_utils.hpp"
 
 namespace math {

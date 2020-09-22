@@ -3,8 +3,8 @@
 #include <functional>
 #include <type_traits>
 
-#include "manifold.hpp"
-#include "matrix_types.hpp"
+#include "geometry_utils/manifold.hpp"
+#include "geometry_utils/matrix_types.hpp"
 
 // Turn off warning about constant if statements.
 #ifdef _MSC_VER

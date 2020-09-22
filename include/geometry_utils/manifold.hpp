@@ -2,8 +2,8 @@
 #pragma once
 #include <type_traits>
 
-#include "matrix_types.hpp"
-#include "so3.hpp"
+#include "geometry_utils/matrix_types.hpp"
+#include "geometry_utils/so3.hpp"
 
 namespace math {
 

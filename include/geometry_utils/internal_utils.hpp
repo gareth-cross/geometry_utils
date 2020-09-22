@@ -1,6 +1,6 @@
 // Copyright 2020 Gareth Cross
 #pragma once
-#include "matrix_types.hpp"
+#include "geometry_utils/matrix_types.hpp"
 
 namespace math {
 
