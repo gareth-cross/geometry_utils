@@ -309,10 +309,10 @@ TEST(SO3Test, TestEulerAnglesFromSO3) {
 TEST(SO3Test, TestBasisFromZAxisWithMinAngularXY) {
   std::default_random_engine engine{0};
   std::uniform_real_distribution<double> distribution{-1., 1.};
-  for (std::size_t i = 1; i < kRandomRotationVectorsZero2Pi.size(); i++) {
+  for (std::size_t i = 0; i < kRandomRotationVectorsZero2Pi.size(); i++) {
     // Create an old basis whose z-vector we want to align to:
     const math::Matrix<double, 3, 3> R_basis_old =
-        math::QuaternionExp(kRandomRotationVectorsZero2Pi[i - 1]).matrix();
+        math::QuaternionExp(kRandomRotationVectorsZero2Pi[i]).matrix();
 
     // The z-vector we want to align our basis' z vector to.
     const Eigen::Vector3d basis_new_z =
@@ -347,6 +347,12 @@ TEST(SO3Test, TestBasisFromZAxisWithMinAngularXY) {
     const double cost_D2_theta = math::NumericalDerivative(0.0, 0.01, cost_derivative);
     ASSERT_NEAR(0.0, cost_D_theta, tol::kNano);
     ASSERT_LT(cost_D2_theta, 0.0);
+
+    // Also test that when given a basis, it returns that basis
+    ASSERT_EIGEN_NEAR(R_basis_old,
+                      math::BasisFromZAxisWithMinAngularXY<double>(
+                          R_basis_old.col(2), R_basis_old.col(0), R_basis_old.col(1)),
+                      tol::kNano);
   }
 }
 
