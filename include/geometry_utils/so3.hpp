@@ -1,5 +1,7 @@
 // Copyright 2020 Gareth Cross
 #pragma once
+#include <iostream>
+
 #include "geometry_utils/internal_utils.hpp"
 #include "geometry_utils/matrix_types.hpp"
 
@@ -217,11 +219,11 @@ Matrix<ScalarType<Derived>, 3, 3> SO3Jacobian(const Eigen::MatrixBase<Derived>& 
  *
  *   dlog(x)/dx|x=exp(w) * d(A*B)/dB|A=exp(w) * dexp(dw)/ddw|dw=0
  *
- * Where dlog(x)/dx is the 3x9 derivative of rodrigues params wrt matrix elements. You can
+ * Where dlog(x)/dx is the 3x9 derivative of Rodrigues params wrt matrix elements. You can
  * find it defined in:
  *
  *  "A tutorial on SE(3) transformation parameterization and on-manifold optimization"
- *    JL Blano, 2010 (Chapter 10)
+ *    JL Blanco, 2010 (Chapter 10)
  *
  * d(A*B)/dB is the Kronecker product: I3 \kron A = I3 \kron exp(w)
  * dexp(dw)/ddw evaluated at zero is just the generators of so3: [[-i]_x; [-j]_x; [-k]_x]
@@ -264,7 +266,7 @@ Matrix<Scalar, 3, 3> RotateVectorSO3TangentJacobian(const Eigen::Quaternion<Scal
 
 // Composition order of euler angles.
 enum class CompositionOrder {
-  // Rx * Ry * Rx
+  // Rz * Ry * Rx
   ZYX = 0,
   // Rx * Ry * Rz
   XYZ,
@@ -280,7 +282,7 @@ enum class CompositionOrder {
  *
  *    R_out = R_z * R_y * R_z (NOTE: Z in the left frame, X in the right)
  *
- * And the Jacobian is compute from:
+ * And the Jacobian is computed from:
  *
  *    R_out * exp(dw) = R_z(z + dz) * R_y(y + dy) * R_x(x + dx)
  *
@@ -374,10 +376,56 @@ Matrix<Scalar, 3, 1> EulerAnglesFromSO3(const Quaternion<Scalar>& q) {
 }
 
 /**
+ * Compute basis that achieves the given Z-axis, and whose X and Y axes minimize the angular
+ * distance to the provided X and Y vectors.
+ *
+ * `basis_z` should be a unit vector for this to work.
+ *
+ * Operates by first setting up a basis F = [bx, by, bz] where bz = `basis_z` and bx, by are
+ * two other arbitrarily chosen vectors to create an orthonormal basis.
+ *
+ * Then we maximize: tx.dot(F * u) + ty.dot(F * v) where u = [cos(theta), sin(theta)] and v
+ * is u rotated 90 degrees: v = [cos(theta + pi/2), sin(theta + pi/2)].
+ *
+ */
+template <typename Scalar>
+Matrix<Scalar, 3, 3> BasisFromZAxisWithMinAngularXY(const Vector<Scalar, 3>& basis_z,
+                                                    const Vector<Scalar, 3>& target_x,
+                                                    const Vector<Scalar, 3>& target_y) {
+  // First pick two vectors orthonormal to basis_z. We do a check here that we are selecting
+  // a vector that is not parallel or anti-parallel to basisZ:
+  const Vector<Scalar, 3> basis_x = (std::abs(basis_z.z()) < static_cast<Scalar>(1 - 0.01f))
+                                        ? basis_z.cross(Vector<Scalar, 3>::UnitZ()).normalized()
+                                        : basis_z.cross(Vector<Scalar, 3>::UnitX()).normalized();
+  const Vector<Scalar, 3> basis_y = basis_z.cross(basis_x);
+  const Matrix<Scalar, 3, 2> F = (Matrix<Scalar, 3, 2>() << basis_x, basis_y).finished();
+
+  // Project the target x/y into the plane we defined:
+  const Vector<Scalar, 2> m = F.transpose() * target_x;
+  const Vector<Scalar, 2> n = F.transpose() * target_y;
+
+  // Compute angle theta that defines the rotation of the x-axis in the plane:
+  // We do this by maximizing: m.dot(u) + n.dot(v)
+  const Scalar c0 = m.x() + n.y();  //  n is rotated 90 degrees here
+  const Scalar c1 = m.y() - n.x();
+
+  // This must be > 0 because both target_x and target_y cannot be parallel to basis_z
+  const Scalar c_norm = std::sqrt(c0 * c0 + c1 * c1);
+  const Scalar cos_theta = c0 / c_norm;
+  const Scalar sin_theta = c1 / c_norm;
+  const Vector<Scalar, 3> final_basis_x = F * Vector<Scalar, 2>{cos_theta, sin_theta};
+
+  // Create final rotation matrix, using the fact that `final_basis_x` and `basis_z` are already
+  // orthonormal.
+  return (Matrix<Scalar, 3, 3>() << final_basis_x, basis_z.cross(final_basis_x), basis_z)
+      .finished();
+}
+
+/**
  * Derivative of the exponential map: so(3) -> SO(3).
  *
  * Returns the 9x3 jacobian of the elements of the 3x3 rotation matrix `R = exp([w]_x)` with
- * respect to the 3-element rodrigues vector `w`.
+ * respect to the 3-element Rodrigues vector `w`.
  *
  * This is the derivative `dvec(exp([w]_x)) / dw` where `vec` unpacks a matrix in
  * column order.
@@ -410,7 +458,7 @@ Matrix<Scalar, 9, 3> SO3ExpMatrixJacobian(const Vector<Scalar, 3>& w) {
   // Expression for w * w^T (a self-adjoint 3x3 matrix).
   const auto w_outer_prod = w * w.transpose();
 
-  // Experssion for product of skew(w) * skew(w)
+  // Expression for product of skew(w) * skew(w)
   const Matrix<Scalar, 3, 3> skew_w_sqr = w_outer_prod - I3 * theta2;
 
   if (theta2 < static_cast<Scalar>(1.0e-12)) {
@@ -449,7 +497,7 @@ Matrix<Scalar, 9, 3> SO3ExpMatrixJacobian(const Vector<Scalar, 3>& w) {
 
     // theta^-3 and theta^-4 terms.
     // The map executes the equivalent of `vec([w]_x * [w]_x)` without copying.
-    const Eigen::Map<const Vector<Scalar, 9>, Eigen::Aligned> vec_w_sqr(skew_w_sqr.data());
+    const Eigen::Map<const Vector<Scalar, 9>, Eigen::Unaligned> vec_w_sqr(skew_w_sqr.data());
     const Scalar vec_skew_w_sqr_coeff =
         sinc_theta / theta2 - 2 * (1 - cos_theta) / (theta2 * theta2);
     result.noalias() += vec_w_sqr * (w.transpose() * vec_skew_w_sqr_coeff);

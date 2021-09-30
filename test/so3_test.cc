@@ -3,6 +3,7 @@
 
 #include <chrono>
 #include <iostream>
+#include <random>
 
 #include "geometry_utils/numerical_derivative.hpp"
 #include "test_utils.hpp"
@@ -302,6 +303,50 @@ TEST(SO3Test, TestEulerAnglesFromSO3) {
     const math::SO3FromEulerAngles_<double> rot =
         math::SO3FromEulerAngles(xyz, CompositionOrder::ZYX);
     ASSERT_EIGEN_NEAR(xyz, math::EulerAnglesFromSO3(rot.q), tol::kNano);
+  }
+}
+
+TEST(SO3Test, TestBasisFromZAxisWithMinAngularXY) {
+  std::default_random_engine engine{0};
+  std::uniform_real_distribution<double> distribution{-1., 1.};
+  for (std::size_t i = 1; i < kRandomRotationVectorsZero2Pi.size(); i++) {
+    // Create an old basis whose z-vector we want to align to:
+    const math::Matrix<double, 3, 3> R_basis_old =
+        math::QuaternionExp(kRandomRotationVectorsZero2Pi[i - 1]).matrix();
+
+    // The z-vector we want to align our basis' z vector to.
+    const Eigen::Vector3d basis_new_z =
+        Eigen::Vector3d{distribution(engine), distribution(engine), distribution(engine)}
+            .normalized();
+
+    // Solve for the new basis
+    const auto target_x = R_basis_old.col(0);
+    const auto target_y = R_basis_old.col(1);
+    const math::Matrix<double, 3, 3> R_output =
+        math::BasisFromZAxisWithMinAngularXY<double>(basis_new_z, target_x, target_y);
+
+    // Check that the z-vector does indeed match
+    ASSERT_EIGEN_NEAR(basis_new_z, R_output.col(2), tol::kPico);
+
+    // Check that the resulting matrix is orthonormal
+    ASSERT_EIGEN_NEAR(Eigen::Matrix3d::Identity(), R_output.transpose() * R_output, tol::kPico);
+    ASSERT_NEAR(1.0, R_output.determinant(), tol::kPico);
+
+    // Check that we actually maximized the quantity we wanted:
+    const auto cost = [=](double theta) -> double {
+      // Rotate a bit about the z-axis (in the plane)
+      const math::Matrix<double, 3, 3> R_perturbed =
+          R_output * math::QuaternionExp(Eigen::Vector3d::UnitZ() * theta).matrix();
+      return R_perturbed.col(0).dot(target_x) + R_perturbed.col(1).dot(target_y);
+    };
+    const auto cost_derivative = [&](double theta) -> double {
+      return math::NumericalDerivative(theta, 0.01, cost);
+    };
+
+    const double cost_D_theta = math::NumericalDerivative(0.0, 0.01, cost);
+    const double cost_D2_theta = math::NumericalDerivative(0.0, 0.01, cost_derivative);
+    ASSERT_NEAR(0.0, cost_D_theta, tol::kNano);
+    ASSERT_LT(cost_D2_theta, 0.0);
   }
 }
 
