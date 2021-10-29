@@ -12,8 +12,8 @@ set(CMAKE_MODULE_PATH
     )
 
 # Maybe download eigen, if this option is specified.
-option(FETCH_EIGEN "Clone eigen instead of searching on the system for it" OFF)
-if (FETCH_EIGEN)
+option(GEO_UTILS_FETCH_EIGEN "Clone eigen instead of searching on the system for it" OFF)
+if (${GEO_UTILS_FETCH_EIGEN})
   message(STATUS "Cloning Eigen from gitlab")
   FetchContent_Declare(
       eigen
@@ -22,21 +22,27 @@ if (FETCH_EIGEN)
   )
   FetchContent_GetProperties(eigen)
   if (NOT eigen_POPULATED)
+    # Turn off eigen tests.
+    set(EIGEN_BUILD_PKGCONFIG OFF CACHE BOOL "" FORCE)
+    set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
     FetchContent_Populate(eigen)
     add_subdirectory(${eigen_SOURCE_DIR} ${eigen_BINARY_DIR} EXCLUDE_FROM_ALL)
   endif ()
-  set(EIGEN_DIRECTORY ${eigen_SOURCE_DIR})
 endif ()
 
 # Find the eigen package.
-find_package(Eigen REQUIRED)
-if (${Eigen_FOUND})
-  MESSAGE("Eigen Includes: ${EIGEN_INCLUDE_DIRS}")
+if ((NOT TARGET eigen) AND (NOT GEO_UTILS_FETCH_EIGEN))
+  find_package(Eigen REQUIRED)
+  if (${EIGEN_FOUND})
+    message("Eigen Includes: ${EIGEN_INCLUDE_DIRS}")
+  else ()
+    message(FATAL_ERROR "Failed to find Eigen")
+  endif ()
 endif ()
 
 # Main project library
 add_library(${PROJECT_NAME} INTERFACE)
-target_link_libraries(${PROJECT_NAME} INTERFACE Eigen::Eigen)
+target_link_libraries(${PROJECT_NAME} INTERFACE eigen)
 
 # Turn on C++14
 target_compile_features(${PROJECT_NAME} INTERFACE cxx_std_14)
@@ -49,7 +55,10 @@ target_include_directories(${PROJECT_NAME}
     )
 
 # Unit tests
-add_subdirectory(test)
+option(GEO_UTILS_BUILD_TESTING "Build tests for geometry_utils" ON)
+if (${GEO_UTILS_BUILD_TESTING})
+  add_subdirectory(test)
+endif ()
 
 # make cache variables for install destinations
 include(GNUInstallDirs)
@@ -71,8 +80,11 @@ install(
 )
 
 # Check if we want to install Eigen as well:
-option(INSTALL_EIGEN "Add a install target for Eigen public headers" OFF)
-if (INSTALL_EIGEN)
-  # Install eigen as well. We use DIRECTORY since INTERFACE target doesn't work w/ INSTALL
-  install(DIRECTORY "${EIGEN_INCLUDE_DIRS}/Eigen" DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+option(GEO_UTILS_INSTALL_EIGEN "Add a install target for Eigen public headers" OFF)
+if (${EIGEN_FOUND})
+  if (${GEO_UTILS_INSTALL_EIGEN})
+    # Install eigen as well. We use DIRECTORY since INTERFACE target doesn't work w/ INSTALL
+    message(STATUS "Will install eigen headers to \"${CMAKE_INSTALL_INCLUDEDIR}\"")
+    install(DIRECTORY "${EIGEN_INCLUDE_DIRS}/Eigen" DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+  endif ()
 endif ()
