@@ -69,3 +69,10 @@ install(
     # Install headers to sub-directory of /usr/local/include (or whatever the prefix is).
     PUBLIC_HEADER DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}"
 )
+
+# Check if we want to install Eigen as well:
+option(INSTALL_EIGEN "Add a install target for Eigen public headers" OFF)
+if (INSTALL_EIGEN)
+  # Install eigen as well. We use DIRECTORY since INTERFACE target doesn't work w/ INSTALL
+  install(DIRECTORY "${EIGEN_INCLUDE_DIRS}/Eigen" DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+endif ()
