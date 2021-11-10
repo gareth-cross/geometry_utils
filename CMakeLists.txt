@@ -11,27 +11,8 @@ set(CMAKE_MODULE_PATH
     ${PROJECT_SOURCE_DIR}/cmake
     )
 
-# Maybe download eigen, if this option is specified.
-option(GEO_UTILS_FETCH_EIGEN "Clone eigen instead of searching on the system for it" OFF)
-if (${GEO_UTILS_FETCH_EIGEN})
-  message(STATUS "Cloning Eigen from gitlab")
-  FetchContent_Declare(
-      eigen
-      GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
-      GIT_TAG 3.3.7
-  )
-  FetchContent_GetProperties(eigen)
-  if (NOT eigen_POPULATED)
-    # Turn off eigen tests.
-    set(EIGEN_BUILD_PKGCONFIG OFF CACHE BOOL "" FORCE)
-    set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
-    FetchContent_Populate(eigen)
-    add_subdirectory(${eigen_SOURCE_DIR} ${eigen_BINARY_DIR} EXCLUDE_FROM_ALL)
-  endif ()
-endif ()
-
 # Find the eigen package.
-if ((NOT TARGET eigen) AND (NOT GEO_UTILS_FETCH_EIGEN))
+if (NOT TARGET eigen)
   find_package(Eigen REQUIRED)
   if (${EIGEN_FOUND})
     message(STATUS "Found Eigen")
