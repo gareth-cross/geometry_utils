@@ -1,7 +1,5 @@
 // Copyright 2020 Gareth Cross
 #pragma once
-#include <iostream>
-
 #include "geometry_utils/internal_utils.hpp"
 #include "geometry_utils/matrix_types.hpp"
 
@@ -10,15 +8,12 @@
  * the right-side jacobians, since that is why I use.
  *
  * Tests in so3_test.cc
- *
- * TODO(gareth): Potentially add the jacobians for rotation composition on SO(3), although
- * they are fairly simple.
  */
 namespace math {
 
 /**
  * Convert 3-vector `v` into 3x3 skew symmetric matrix. This operator is
- * often denoted as [v]_x, since it acts as the cross-product when left-multipled.
+ * often denoted as [v]_x, since it acts as the cross-product when left-multiplied.
  *
  * See: https://en.wikipedia.org/wiki/Skew-symmetric_matrix#Cross_product
  */
@@ -118,7 +113,7 @@ Matrix<ScalarType<Derived>, 4, 3> QuaternionExpJacobian(const Eigen::MatrixBase<
   } else {
     const Scalar sinc_ha_2 = std::sin(angle / 2) / angle;
     q.vec() = w * sinc_ha_2;
-    // Fill out derivtive part. First row is same in both cases (small/large).
+    // Fill out derivative part. First row is same in both cases (small/large).
     const Vector<Scalar, 3> w_hat = w / angle;
     q_D_w.template topRows<1>() = -q.vec().transpose() / 2;
     q_D_w.template bottomRows<3>().setIdentity();
@@ -387,6 +382,9 @@ Matrix<Scalar, 3, 1> EulerAnglesFromSO3(const Quaternion<Scalar>& q) {
  * Then we maximize: tx.dot(F * u) + ty.dot(F * v) where u = [cos(theta), sin(theta)] and v
  * is u rotated 90 degrees: v = [cos(theta + pi/2), sin(theta + pi/2)].
  *
+ * In the case where basis_z is a reflection of the input basis z-axis (as determined by target_x
+ * and target_y), we arbitrarily choose to maximize alignment with `target_x`, since maximizing both
+ * is impossible.
  */
 template <typename Scalar>
 Matrix<Scalar, 3, 3> BasisFromZAxisWithMinAngularXY(const Vector<Scalar, 3>& basis_z,
@@ -408,9 +406,20 @@ Matrix<Scalar, 3, 3> BasisFromZAxisWithMinAngularXY(const Vector<Scalar, 3>& bas
   // We do this by maximizing: m.dot(u) + n.dot(v)
   const Scalar c0 = m.x() + n.y();  //  n is rotated 90 degrees here
   const Scalar c1 = m.y() - n.x();
+  const Scalar c_norm_squared = c0 * c0 + c1 * c1;
+  const Scalar c_norm = std::sqrt(c_norm_squared);
 
-  // This must be > 0 because both target_x and target_y cannot be parallel to basis_z
-  const Scalar c_norm = std::sqrt(c0 * c0 + c1 * c1);
+  if (c_norm < static_cast<Scalar>(1.0e-12)) {
+    // This case occurs when `m` and `n` are perpendicular in the chosen plane. This can happen
+    // if the `target_x` and `target_y` already fall in a plane parallel to the one we defined.
+    // In this case, take theta ~= 0. This is a choice, since we could maximize the alignment to
+    // x or y, but not both.
+    const auto final_basis_x = F.template leftCols<1>();
+    return (Matrix<Scalar, 3, 3>() << final_basis_x, basis_z.cross(final_basis_x), basis_z)
+        .finished();
+  }
+
+  // c_norm must be > 0 because both target_x and target_y cannot be parallel to basis_z
   const Scalar cos_theta = c0 / c_norm;
   const Scalar sin_theta = c1 / c_norm;
   const Vector<Scalar, 3> final_basis_x = F * Vector<Scalar, 2>{cos_theta, sin_theta};
@@ -548,7 +557,7 @@ Matrix<Scalar, 3, 3> SO3LogMulExpJacobian(const Quaternion<Scalar>& R, const Vec
   YHatMul(R * exp_w_D_w_middle, v_prime_D_w_block);
   ZHatMul(R * exp_w_D_w_bottom, v_prime_D_w_block);
 
-  // Delegate to eigen for angle-axis conversion (we do the derivs ourselves).
+  // Delegate to eigen for angle-axis conversion (we do the derivatives ourselves).
   const Eigen::AngleAxis<Scalar> aa(B);
   const Scalar& theta = aa.angle();
 
