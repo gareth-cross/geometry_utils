@@ -422,7 +422,7 @@ TEST(SO3Test, SO3LogMulExpJacobianNearZero) {
   };
   // clang-format on
 
-  // for small hangle to hold, R should be identity
+  // for small angle to hold, R should be identity
   const Quaternion<double> R = Quaternion<double>::Identity();
 
   // functor that holds R fixed and multiplies on w

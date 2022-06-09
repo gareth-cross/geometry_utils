@@ -14,14 +14,14 @@ using Vector3d = Vector<double, 3>;
 using Matrix2d = Matrix<double, 2, 2>;
 using Matrix3d = Matrix<double, 3, 3>;
 
-// TODO(gareth): Add more principaled bounds on max error.
-// Some of these tolerances may be somewhat pesimistic.
+// TODO(gareth): Add more principled bounds on max error.
+// Some of these tolerances may be somewhat pessimistic.
 // We test w/ h = 0.01, which should produce error terms on the order of h^6 = 1e-12
 TEST(NumericalDerivativeTest, TestCentralDiff) {
   // a linear equation
   const auto linear = [](double x) { return 2 * x + 0.5; };
   for (double h : {1.0, 0.1, 0.01, 0.001}) {
-    // central difference should be exact (up to float error) for linear (indepedent of h)
+    // central difference should be exact (up to float error) for linear (independent of h)
     EXPECT_NEAR(2.0, NumericalDerivative(0.0, h, linear), tol::kPico);
   }
 
